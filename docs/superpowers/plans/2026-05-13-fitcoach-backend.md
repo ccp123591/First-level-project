@@ -154,7 +154,7 @@ src/test/java/com/fitcoach/
 
 ---
 
-## Phase Plan (33 tasks across 8 phases)
+## Phase Plan (38 tasks across 9 phases)
 
 | Phase | Tasks | Theme |
 |---|---|---|
@@ -166,6 +166,7 @@ src/test/java/com/fitcoach/
 | 6. Cross-cutting | T25 – T27 | upload security, request log, seed fix |
 | 7. Tests | T28 – T31 | repo, service, controller, e2e |
 | 8. Prod hardening | T32 – T33 | prod yml, headers, docker-compose, README |
+| 9. User profile + AI memory | T34 – T38 | t_user_profile, async extraction, MiMo prompt enrichment |
 
 Conventions for every task:
 - `cd home-fitness-fullstack/backend` before maven commands
@@ -675,10 +676,10 @@ public interface MailSender { void send(String email, String subject, String bod
 - Modify: `src/main/java/com/fitcoach/auth/AuthService.java`
 - Modify: `src/main/java/com/fitcoach/auth/AuthController.java`
 
-- [ ] **Step 1: Add `jti` claim** to `generateRefreshToken`. Make `accessToken` also carry `jti`. Provide `getJti(String token)`.
+- [ ] **Step 1: Add `jti` claim to refresh tokens only** in `generateRefreshToken` (use `UUID.randomUUID().toString()`). Access tokens stay jti-less — they expire in 2h, so revocation is not required and we avoid a Redis lookup on every authenticated request. Provide `getJti(String token)`.
 - [ ] **Step 2: Entity `RefreshTokenBlacklist`** maps `t_refresh_token_blacklist`. Repo: `existsByJti`, `deleteByExpiresAtBefore`.
 - [ ] **Step 3: `RefreshTokenStore`** — `revoke(jti, userId, exp, reason)`: write Redis `rt:black:<jti>` TTL=remaining + insert DB row. `isRevoked(jti)`: Redis primary; on Redis exception, fallback to DB.
-- [ ] **Step 4: `JwtAuthFilter` consult** — after parsing claims, if `RefreshTokenStore.isRevoked(claims.getId())` then skip auth.
+- [ ] **Step 4: `JwtAuthFilter` consult** — *only when the claim `type == "refresh"`* (set on refresh tokens), look up the jti via `RefreshTokenStore.isRevoked`. Access tokens skip the lookup. Refresh tokens reaching this filter are rare (only the `/refresh` endpoint reads them), so the Redis hit is bounded.
 - [ ] **Step 5: `AuthService.refresh`** — also reject when jti revoked.
 - [ ] **Step 6: `AuthController.logout`** — read `Authorization` header, parse refresh token (if present in body or header), revoke its jti.
 - [ ] **Step 7: Tests** — login → logout → refresh with old token returns 401.
@@ -876,7 +877,7 @@ public interface MailSender { void send(String email, String subject, String bod
 
 - [ ] **Step 1: For each controller** write at least: (a) happy path with valid JWT, (b) 401 without JWT, (c) 400 with malformed body (where applicable), (d) 403 when accessing other-user resource.
 - [ ] **Step 2: Use `@SpringBootTest` + `MockMvc`** with `@ActiveProfiles("test")`.
-- [ ] **Step 3: For endpoints that depend on Redis** (`/api/auth/sms/send`, rate-limited routes), use **Testcontainers Redis** (`@Testcontainers`, `@Container static GenericContainer redis = new GenericContainer("redis:7-alpine").withExposedPorts(6379)`).
+- [ ] **Step 3: For endpoints that depend on Redis** (`/api/auth/sms/send`, rate-limited routes), use **Testcontainers Redis** (`@Testcontainers`, `@Container static GenericContainer redis = new GenericContainer("redis:7-alpine").withExposedPorts(6379)`). On Windows hosts without Docker Desktop, annotate the test class with `@DisabledIfEnvironmentVariable(named="DISABLE_REDIS_IT", matches="true")` and document `set DISABLE_REDIS_IT=true` as the local-skip toggle.
 - [ ] **Step 4: Commit** — `git commit -m "test(it): controller integration tests covering happy + 401/403/400"`
 
 ### Task T31: End-to-end FitnessFlowIT
@@ -1069,7 +1070,7 @@ void aggregate_extracts_favorite_action_and_weakest_dimension() {
 
 - [ ] **Step 1: Event** — `record SessionCreatedEvent(Long userId, Long sessionId) {}`.
 - [ ] **Step 2: `SessionService.create`** — after `sessionRepo.save(s)`, publish event via `ApplicationEventPublisher`.
-- [ ] **Step 3: Listener** — `@Component`, `@Async`, `@TransactionalEventListener(phase=AFTER_COMMIT)`; calls `profileExtractionService.refresh(uid)`. Guard against re-entrancy (skip if `updated_at` < 60s ago).
+- [ ] **Step 3: Listener** — `@Component`, `@Async`, `@TransactionalEventListener(phase=AFTER_COMMIT)`; first reads existing profile via `UserProfileRepository.findByUserId(uid)` — if present AND `updated_at` is within the last 60s, return early (re-entrancy guard). Otherwise call `profileExtractionService.refresh(uid)`.
 - [ ] **Step 4: MiMo path** — when `ai.profile.summarizer=mimo`, after deterministic aggregate, send the aggregate JSON to MiMo with system prompt "用 1 段中文 ≤120 字总结这位用户". Replace `summaryText`. Cache 1 day to avoid spamming MiMo on every session.
 - [ ] **Step 5: `@EnableAsync`** on app class.
 - [ ] **Step 6: Test** — create 1 session → after 200ms `t_user_profile.updated_at` is recent.
