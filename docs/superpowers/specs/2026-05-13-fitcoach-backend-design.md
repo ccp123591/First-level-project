@@ -125,6 +125,9 @@ com.fitcoach/
 New endpoints:
 - `POST /api/auth/password/forgot`
 - `POST /api/auth/password/reset`
+- `POST /api/auth/sms/send` (was 501, now real)
+- `POST /api/auth/email/send` (was 501, now real)
+- `POST /api/auth/login/phone` (was 501, now real)
 - `GET /api/challenges/{id}` (detail)
 - `GET /actuator/health`, `GET /actuator/info`, `GET /actuator/metrics`
 
@@ -195,7 +198,7 @@ Spring 6 `RestClient` is used (not `WebClient`, no reactive stack needed). Timeo
 - **bcrypt**: cost 10 (Spring default).
 - **JWT secret**: prod fail-fast if missing or `< 32` bytes. Centralized in `JwtUtil.@PostConstruct`.
 - **Refresh-token blacklist**: jti claim added when generating refresh tokens. `JwtAuthFilter` (and refresh endpoint) check Redis; if present, reject.
-- **Failed-login lockout**: 5 consecutive failures within 15 min locks the email (returns `423 Locked`). Counter in Redis. Audit row in `t_login_attempt`.
+- **Failed-login lockout**: 5 consecutive failures within 15 min locks the email (returns `423 Locked`). Counter in Redis. **Audit semantics**: `t_login_attempt` is written *only at the lockout boundary* (the 5th failure that triggers the lock and on the unlock event), not on every failed attempt — Redis carries the running counter.
 - **Rate limit**:
   - `/api/auth/login/**` and `/api/auth/*/send`: 5 req/min/IP, 10/min/identifier
   - `/api/auth/register`: 3 req/min/IP
