@@ -30,6 +30,7 @@ The frontend `src/api/*.js` files are the binding contract — they MUST keep wo
 | S11 | Seed data fix | The 4 seeded official plans currently have `items_json='[]'`. Populate each with a real day-by-day item array. Add example challenges. |
 | S12 | Tests | JUnit 5 + Mockito + MockMvc + `@DataJpaTest`. Targets: Service line coverage ≥ 70%, overall ≥ 55%. At least one happy-path + one 401/403/400 per controller. One end-to-end `FitnessFlowTest` covering register → login → create session → coach feedback → leaderboard. |
 | S13 | Prod config hardening | `application-prod.yml`: JWT_SECRET required from env (fail-fast if <32 bytes), `server.error.include-message: never`, HSTS + nosniff + Referrer-Policy + Permissions-Policy headers via `HeadersConfigurer`. CORS origins from env-comma-list. |
+| S14 | **User Profile + AI Memory** (added 2026-05-13) | New `t_user_profile` table. `ProfileExtractionService` aggregates favorite action, weakest dimension, streak, total reps, recent notes into a structured DTO + 1-sentence Chinese `summaryText`. v1 deterministic; v2 optional MiMo-summarized (`ai.profile.summarizer=mimo`, cached 1 day). Refreshed async via `@TransactionalEventListener` on session-create. `summaryText` is injected as user-profile context into every MiMo coach prompt, making suggestions personalized and continuous across sessions. New endpoints: `GET /api/users/me/profile`, `POST /api/users/me/profile/refresh`. |
 
 ### 2.2 Out of scope
 

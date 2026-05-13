@@ -977,3 +977,142 @@ After T33, the backend should:
 3. **Flyway V1 mismatch with current JPA entities** — `ddl-auto: validate` in prod will fail on mismatch; mitigation: explicit `mvn -q -Dtest=PlanRepositoryIT test` against MySQL via Testcontainers before merging.
 4. **DataInitializer ordering** — runs before ChallengeRepository may be ready if classpath weirdness. Mitigation: `@DependsOn` or use `ApplicationRunner` with order.
 
+
+---
+
+## Phase 9 — User Profile + AI Memory
+
+**Why:** Today every MiMo prompt is built from the latest session + last 7 raw sessions. That misses long-term context (favorite actions, weak dimensions, goal progression, last week's complaints). A user profile is a compact, versioned, persisted *memory* that gets fed into every coach prompt, making suggestions personalized and continuous across sessions.
+
+**Design:**
+
+- One row per user in `t_user_profile`, JSON column for the extracted profile + `updated_at`, `version`, `summary_text` (short Chinese summary for prompt injection).
+- v1 extraction is **deterministic** (pure aggregation over `t_session` + `t_coach_feedback`): favorite action, total reps by action, best/avg scores, weakest dimension, streak stats, last 5 user-written notes. No MiMo call needed for v1 — cheap and reliable.
+- v2 (opt-in via `ai.profile.summarizer=mimo`) calls MiMo to rewrite the deterministic aggregate into a 1-paragraph Chinese summary; cached 1 day.
+- Trigger: `@TransactionalEventListener` on session-create → async refresh of profile. Also a manual `POST /api/users/me/profile/refresh`.
+- Read endpoint: `GET /api/users/me/profile` returns the structured profile.
+- `CoachService` injects `profile.summaryText` into `CoachContext` before calling the provider.
+
+### Task T34: UserProfile entity + repo + table
+
+**Files:**
+- Create: `src/main/java/com/fitcoach/user/UserProfile.java`
+- Create: `src/main/java/com/fitcoach/user/UserProfileRepository.java`
+- Create: `src/main/resources/db/migration/V6__user_profile.sql`
+- Modify: `src/main/resources/application.yml` (add `ai.profile.summarizer` config)
+
+- [ ] **Step 1: V6 migration**
+
+```sql
+CREATE TABLE t_user_profile (
+  user_id BIGINT NOT NULL PRIMARY KEY,
+  profile_json TEXT,
+  summary_text VARCHAR(800),
+  summarizer VARCHAR(16) DEFAULT 'aggregate',  -- aggregate | mimo
+  version INT NOT NULL DEFAULT 1,
+  updated_at DATETIME
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+```
+
+- [ ] **Step 2: Entity** — `@Entity @Table(name="t_user_profile")`. Lombok. Fields match the SQL.
+- [ ] **Step 3: Repo** — `UserProfileRepository extends JpaRepository<UserProfile, Long>` with `findByUserId`.
+- [ ] **Step 4: Config**
+
+```yaml
+ai:
+  profile:
+    summarizer: ${AI_PROFILE_SUMMARIZER:aggregate}   # aggregate | mimo
+    refresh-on-session: true
+```
+
+- [ ] **Step 5: Commit** — `git commit -m "feat(profile): UserProfile entity + V6 migration"`
+
+### Task T35: ProfileExtractionService (v1 aggregate)
+
+**Files:**
+- Create: `src/main/java/com/fitcoach/user/ProfileExtractionService.java`
+- Create: `src/main/java/com/fitcoach/user/dto/UserProfileDto.java`
+- Create: `src/test/java/com/fitcoach/user/ProfileExtractionServiceTest.java`
+
+- [ ] **Step 1: DTO** — `UserProfileDto` fields: `favoriteAction`, `favoriteActionLabel`, `actionCounts: Map<String,Long>`, `bestScore`, `avgScore`, `weakestDimension` (one of rhythm/stability/depth/symmetry/completion), `streakDays`, `totalDays`, `totalReps`, `recentNotes: List<String>`, `summaryText: String`, `updatedAt`.
+- [ ] **Step 2: Failing test**
+
+```java
+@Test
+void aggregate_extracts_favorite_action_and_weakest_dimension() {
+    given(sessionRepo.findByUserIdOrderBySessionDateDesc(7L)).willReturn(List.of(
+        sess("squat", 80, 90, 60, 85, 80, 95),
+        sess("squat", 78, 88, 55, 80, 75, 90),
+        sess("pushup", 70, 70, 70, 70, 70, 70)
+    ));
+    given(feedbackRepo.findByUserIdOrderByCreatedAtDesc(7L)).willReturn(List.of());
+    var dto = service.aggregate(7L);
+    assertThat(dto.getFavoriteAction()).isEqualTo("squat");
+    assertThat(dto.getWeakestDimension()).isEqualTo("depth");
+    assertThat(dto.getSummaryText()).contains("深蹲");
+}
+```
+
+- [ ] **Step 3: Implement** — pure JPA aggregation. Choose favorite by count tiebreak total reps. Weakest dim = lowest avg over last 30 sessions. Build short `summaryText`: e.g. `"<nickname>偏爱深蹲(累计 N 次), 平均分 80, 深度待提升, 连续 X 天"`.
+- [ ] **Step 4: Persist** — `service.refresh(uid)` calls `aggregate`, upserts `t_user_profile` (uses `UserProfileRepository.findByUserId` + save with incremented `version`).
+- [ ] **Step 5: Test passes**.
+- [ ] **Step 6: Commit** — `git commit -m "feat(profile): deterministic v1 aggregate extraction"`
+
+### Task T36: Async refresh on session-create + optional MiMo summarizer
+
+**Files:**
+- Modify: `src/main/java/com/fitcoach/session/SessionService.java` (publish event)
+- Create: `src/main/java/com/fitcoach/user/SessionCreatedEvent.java`
+- Create: `src/main/java/com/fitcoach/user/ProfileRefreshListener.java`
+- Modify: `src/main/java/com/fitcoach/FitCoachApplication.java` (add `@EnableAsync`)
+- Optional: extend `ProfileExtractionService.refresh` to call MiMo when `summarizer=mimo`
+
+- [ ] **Step 1: Event** — `record SessionCreatedEvent(Long userId, Long sessionId) {}`.
+- [ ] **Step 2: `SessionService.create`** — after `sessionRepo.save(s)`, publish event via `ApplicationEventPublisher`.
+- [ ] **Step 3: Listener** — `@Component`, `@Async`, `@TransactionalEventListener(phase=AFTER_COMMIT)`; calls `profileExtractionService.refresh(uid)`. Guard against re-entrancy (skip if `updated_at` < 60s ago).
+- [ ] **Step 4: MiMo path** — when `ai.profile.summarizer=mimo`, after deterministic aggregate, send the aggregate JSON to MiMo with system prompt "用 1 段中文 ≤120 字总结这位用户". Replace `summaryText`. Cache 1 day to avoid spamming MiMo on every session.
+- [ ] **Step 5: `@EnableAsync`** on app class.
+- [ ] **Step 6: Test** — create 1 session → after 200ms `t_user_profile.updated_at` is recent.
+- [ ] **Step 7: Commit** — `git commit -m "feat(profile): async refresh on session-create + optional MiMo summarizer"`
+
+### Task T37: Wire profile into CoachService
+
+**Files:**
+- Modify: `src/main/java/com/fitcoach/coach/CoachService.java`
+- Modify: `src/main/java/com/fitcoach/infra/ai/CoachContext.java`
+- Modify: `src/main/java/com/fitcoach/infra/ai/CoachPromptTemplates.java`
+
+- [ ] **Step 1: Add field** `String userProfileSummary` to `CoachContext`.
+- [ ] **Step 2: `CoachService.feedback`** — also read `UserProfileRepository.findByUserId(uid)`; populate `ctx.userProfileSummary` with `profile.getSummaryText()` (or empty string if profile missing).
+- [ ] **Step 3: `CoachPromptTemplates.userMessage`** — prepend `"用户画像: <summary>"` to the JSON dump (becomes "用户画像: ..." + structured context).
+- [ ] **Step 4: Test** — `CoachServiceTest` adds a case where profile exists; verify the provider's input `ctx.userProfileSummary` is populated.
+- [ ] **Step 5: Commit** — `git commit -m "feat(coach): inject user profile summary into MiMo prompt context"`
+
+### Task T38: Profile endpoint + DTO
+
+**Files:**
+- Create: `src/main/java/com/fitcoach/user/ProfileController.java`
+- Create: `src/test/java/com/fitcoach/user/ProfileControllerIT.java`
+
+- [ ] **Step 1: Endpoints**
+
+```java
+@RestController
+@RequestMapping("/api/users/me/profile")
+@RequiredArgsConstructor
+public class ProfileController {
+    private final ProfileExtractionService service;
+
+    @GetMapping
+    public ApiResult<UserProfileDto> me() { return ApiResult.ok(service.read(SecurityUtil.currentUserId())); }
+
+    @PostMapping("/refresh")
+    public ApiResult<UserProfileDto> refresh() { return ApiResult.ok(service.refresh(SecurityUtil.currentUserId())); }
+}
+```
+
+- [ ] **Step 2: `service.read`** returns the stored profile or — if missing — runs `aggregate` synchronously, persists, and returns.
+- [ ] **Step 3: Frontend contract** — this is a NEW endpoint; tell frontend team to add `userApi.getProfile()` later; not required for backend completion.
+- [ ] **Step 4: Test** — call refresh after creating sessions → returns updated DTO.
+- [ ] **Step 5: Commit** — `git commit -m "feat(profile): GET/POST /api/users/me/profile endpoints"`
+
