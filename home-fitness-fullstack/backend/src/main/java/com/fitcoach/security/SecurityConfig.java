@@ -44,6 +44,7 @@ public class SecurityConfig {
                     "/v3/api-docs/**",
                     "/h2-console/**",
                     "/error",
+                    "/uploads/**",
                     "/actuator/**"
                 ).permitAll()
                 // 放行：公开的只读接口
