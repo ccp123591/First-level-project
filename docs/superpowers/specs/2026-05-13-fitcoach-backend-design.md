@@ -31,6 +31,7 @@ The frontend `src/api/*.js` files are the binding contract — they MUST keep wo
 | S12 | Tests | JUnit 5 + Mockito + MockMvc + `@DataJpaTest`. Targets: Service line coverage ≥ 70%, overall ≥ 55%. At least one happy-path + one 401/403/400 per controller. One end-to-end `FitnessFlowTest` covering register → login → create session → coach feedback → leaderboard. |
 | S13 | Prod config hardening | `application-prod.yml`: JWT_SECRET required from env (fail-fast if <32 bytes), `server.error.include-message: never`, HSTS + nosniff + Referrer-Policy + Permissions-Policy headers via `HeadersConfigurer`. CORS origins from env-comma-list. |
 | S14 | **User Profile + AI Memory** (added 2026-05-13) | New `t_user_profile` table. `ProfileExtractionService` aggregates favorite action, weakest dimension, streak, total reps, recent notes into a structured DTO + 1-sentence Chinese `summaryText`. v1 deterministic; v2 optional MiMo-summarized (`ai.profile.summarizer=mimo`, cached 1 day). Refreshed async via `@TransactionalEventListener` on session-create. `summaryText` is injected as user-profile context into every MiMo coach prompt, making suggestions personalized and continuous across sessions. New endpoints: `GET /api/users/me/profile`, `POST /api/users/me/profile/refresh`. |
+| S15 | **Vector Memory (RAG over training history)** (added 2026-05-15) | Upgrade `redis:7-alpine` → `redis/redis-stack-server:7.4.0-v0` to gain RediSearch + vector indexes (FLAT/HNSW). New `infra/ai/embedding/` package: `EmbeddingProvider` interface + `MockEmbeddingProvider` (deterministic SHA-256→float seed, 1024-d) + `OpenAiCompatEmbeddingProvider` (uses MiMo's OpenAI-compatible `/embeddings` endpoint when configured). New `infra/ai/memory/VectorMemoryService` wrapping RediSearch `FT.SEARCH` KNN. On the same `SessionCreatedEvent` from S14, listener also embeds `"<actionLabel> <repsx> 节奏=R 稳定=S 深度=D 对称=Y 完成=C; <notes>"` into Redis index `idx:session:vec` with payload `{userId, sessionId, action, score, createdAt}`. `CoachService.suggestion`/`weeklyPlan`/`feedback` build a query vector from `(profile.summaryText + currentRequest)`, call `VectorMemoryService.searchSimilar(userId, qVec, K=5)`, and inject the retrieved snippets as a `recentMemories` block in the MiMo prompt. New endpoint `POST /api/users/me/memory/rebuild` performs full re-embed of the user's sessions (admin or self). Failure mode: any embedding/search exception → log WARN, skip RAG, fall back to S14-only path (RAG is enrichment, not the critical path). |
 
 ### 2.2 Out of scope
 
@@ -321,3 +322,171 @@ volumes:
 - Frontend code is not touched. The frontend `src/api/*.js` files dictate the contract.
 - The pose-detection / scoring algorithms remain on the client.
 - No premium / paid features are introduced.
+
+## 13. S15 — Vector Memory details (added 2026-05-15)
+
+### 13.1 Container change
+
+```yaml
+redis:
+  image: redis/redis-stack-server:7.4.0-v0
+  # remains password-less in dev; in prod set REDIS_ARGS or `--requirepass`
+```
+
+The OSS Redis Stack Server image bundles RediSearch 2.10+, which supports
+`HNSW` and `FLAT` vector indexes with cosine / L2 / IP distance. No client
+library change — Lettuce talks the same RESP protocol; vector commands are
+just `FT.CREATE` / `FT.SEARCH` strings.
+
+### 13.2 Index schema
+
+Created on app boot via `VectorMemoryService.@PostConstruct`:
+
+```
+FT.CREATE idx:session:vec
+  ON HASH PREFIX 1 sess:vec:
+  SCHEMA
+    user_id   TAG SORTABLE
+    action    TAG
+    score     NUMERIC SORTABLE
+    created   NUMERIC SORTABLE
+    text      TEXT NOSTEM
+    embedding VECTOR HNSW 8
+              TYPE FLOAT32
+              DIM 1024
+              DISTANCE_METRIC COSINE
+              M 16
+              EF_CONSTRUCTION 200
+```
+
+Document key: `sess:vec:<sessionId>`. Hash fields mirror the schema; `embedding` is the raw little-endian float32 byte string (Lettuce `set` with `byte[]` value).
+
+### 13.3 EmbeddingProvider contract
+
+```java
+package com.fitcoach.infra.ai.embedding;
+
+public interface EmbeddingProvider {
+    /** Returns one float[1024] vector per input string. Implementations MUST be thread-safe. */
+    List<float[]> embed(List<String> texts);
+    int dimension(); // 1024 for current providers
+    String name();   // "mock" | "mimo" | "openai"
+}
+```
+
+Bean selection mirrors `AiCoachProvider`:
+`@ConditionalOnProperty(name="ai.embedding.provider", havingValue="mimo")` →
+`OpenAiCompatEmbeddingProvider`. Default `mock` so dev / tests run without
+network.
+
+`MockEmbeddingProvider`:
+- Splits the text into UTF-8 bytes, SHA-256 hashes it
+- Expands the 32-byte digest into a 1024-d float vector by `Random(seed=hashLong)` deterministic draw, then L2-normalized
+- Identical text → identical vector → semantic-similarity tests are reproducible
+
+`OpenAiCompatEmbeddingProvider`:
+- POST `${ai.embedding.base-url}/embeddings`
+- body `{"model":"<model>","input":[...]}`
+- parses `data[].embedding`, returns float[]
+- 10s timeout, exceptions wrap into `BusinessException(503, "Embedding provider unavailable")`
+
+### 13.4 Configuration
+
+```yaml
+ai:
+  embedding:
+    enabled: true
+    provider: ${AI_EMBEDDING_PROVIDER:mock}      # mock | mimo
+    dimension: 1024
+    mimo:
+      api-key: ${AI_EMBEDDING_API_KEY:${MIMO_API_KEY:}}
+      base-url: ${AI_EMBEDDING_BASE_URL:https://api.xiaomimimo.com/v1}
+      model: ${AI_EMBEDDING_MODEL:mimo-embedding-v1}
+      timeout-seconds: 10
+  memory:
+    enabled: true
+    top-k: 5
+    rebuild-batch-size: 200
+```
+
+If `embedding.enabled=false` OR `memory.enabled=false`, all RAG calls become no-ops and Coach falls back to S14 prompt context only.
+
+### 13.5 Write path
+
+`SessionCreatedEvent` (existing in S14) is consumed by **two** listeners:
+
+1. `ProfileRefreshListener` (S14, profile aggregate)
+2. `VectorMemoryListener` (S15, embed + hset + index update)
+
+Both `@Async`, both `@TransactionalEventListener(phase=AFTER_COMMIT)`.
+Order is irrelevant — they're independent. Failures in either are isolated and logged.
+
+`VectorMemoryListener.handle(evt)`:
+
+```java
+String text = buildSessionText(session);            // "深蹲 30次 节奏=85 稳定=80 深度=70..."
+float[] vec = embedding.embed(List.of(text)).get(0);
+Map<String,Object> hash = Map.of(
+    "user_id", String.valueOf(session.getUserId()),
+    "action",  session.getAction(),
+    "score",   String.valueOf(session.getScore()),
+    "created", String.valueOf(session.getCreatedAt().toEpochSecond(UTC)),
+    "text",    text,
+    "embedding", floatsToLEBytes(vec)
+);
+redisTemplate.opsForHash().putAll("sess:vec:" + session.getId(), hash);
+```
+
+### 13.6 Read path (KNN)
+
+`VectorMemoryService.searchSimilar(userId, queryVec, K)`:
+
+```
+FT.SEARCH idx:session:vec
+  '(@user_id:{<userId>}) =>[KNN 5 @embedding $vec AS score]'
+  PARAMS 2 vec <byte[]>
+  RETURN 5 score text action created
+  SORTBY score ASC
+  DIALECT 2
+```
+
+Returns `List<Memory>` with `text/action/score/createdAt/distance`.
+
+### 13.7 RAG injection in Coach prompt
+
+`CoachPromptTemplates.userMessage` now appends a `recentMemories` JSON array (top-K, distance ≤ 0.45 to avoid junk) to the existing payload. System prompt gains a single line: `"参考用户最近的训练记录(recentMemories)调整建议,但不要逐条复述。"`
+
+### 13.8 Rebuild endpoint
+
+`POST /api/users/me/memory/rebuild` (auth required):
+
+1. `SecurityUtil.currentUserId()` → uid
+2. `sessionRepo.findByUserIdOrderByCreatedAtDesc(uid, PageRequest.of(0, 500))`
+3. Embed in batches of `rebuild-batch-size` (default 200) — MiMo's `/embeddings` accepts arrays
+4. Pipeline `HSET` writes
+5. Return `{"reembedded": <count>, "took": <ms>}`
+
+Admin-scope `POST /api/admin/memory/rebuild?userId=<id>` uses the same path with explicit uid; ROLE_ADMIN required.
+
+### 13.9 Observability
+
+- Counter `fitcoach.memory.embed.count{provider}` — incremented per embed call
+- Histogram `fitcoach.memory.search.latency` — RediSearch FT.SEARCH duration
+- Log line on every RAG injection: `[<requestId>] memory.search uid=<u> k=<k> hits=<n> took=<ms>ms`
+
+### 13.10 Test plan
+
+- `MockEmbeddingProviderTest` — same input twice → identical 1024-d vector, L2 norm ≈ 1
+- `VectorMemoryServiceIT` — uses Testcontainers `redis/redis-stack-server`; insert 10 sessions for u=1, 10 for u=2, KNN search with u=1 only returns u=1 docs
+- `CoachServiceTest` — when memory.enabled=true and Mock provider → ctx.recentMemories non-empty; when memory.enabled=false → empty
+- `MemoryRebuildEndpointIT` — register, create 3 sessions, call rebuild, expect `reembedded=3`
+
+### 13.11 Risks
+
+| Risk | Mitigation |
+|------|-----------|
+| Redis Stack image larger (~120 MB) | Acceptable single-host deploy; documented |
+| RediSearch FT.CREATE on idx that already exists throws "Index already exists" | Catch and ignore on startup; `FT.INFO` first |
+| Embedding API rate / cost spikes from auto-rebuild loops | rebuild endpoint capped at 500 sessions per call; cooldown 60s per user |
+| Float32 byte-order portability | Always little-endian (RediSearch convention); helper has unit test |
+| Mock provider yields trivially clustered vectors | Mock is dev/test only; integration tests assert structure, not relevance |

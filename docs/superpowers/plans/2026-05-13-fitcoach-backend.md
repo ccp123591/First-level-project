@@ -154,7 +154,7 @@ src/test/java/com/fitcoach/
 
 ---
 
-## Phase Plan (38 tasks across 9 phases)
+## Phase Plan (44 tasks across 10 phases)
 
 | Phase | Tasks | Theme |
 |---|---|---|
@@ -167,6 +167,7 @@ src/test/java/com/fitcoach/
 | 7. Tests | T28 – T31 | repo, service, controller, e2e |
 | 8. Prod hardening | T32 – T33 | prod yml, headers, docker-compose, README |
 | 9. User profile + AI memory | T34 – T38 | t_user_profile, async extraction, MiMo prompt enrichment |
+| 10. Vector memory (RAG) | T39 – T44 | Redis Stack, EmbeddingProvider, KNN over sessions, rebuild endpoint |
 
 Conventions for every task:
 - `cd home-fitness-fullstack/backend` before maven commands
@@ -1117,3 +1118,242 @@ public class ProfileController {
 - [ ] **Step 4: Test** — call refresh after creating sessions → returns updated DTO.
 - [ ] **Step 5: Commit** — `git commit -m "feat(profile): GET/POST /api/users/me/profile endpoints"`
 
+---
+
+## Phase 10 — Vector memory (RAG over training history)
+
+> Full design in spec §13. All paths relative to `home-fitness-fullstack/backend/`.
+
+### Task T39: Switch to Redis Stack image + ai.memory config
+
+**Files:**
+- Modify: `home-fitness-fullstack/docker-compose.yml`
+- Modify: `src/main/resources/application.yml`
+
+- [ ] **Step 1: Compose** — change Redis service `image: redis:7-alpine` → `image: redis/redis-stack-server:7.4.0-v0`. Keep ports/volumes/healthcheck identical (RediSearch is enabled by default; FT.* commands work over the same 6379).
+- [ ] **Step 2: application.yml** — add new section:
+
+```yaml
+ai:
+  embedding:
+    enabled: true
+    provider: ${AI_EMBEDDING_PROVIDER:mock}      # mock | mimo
+    dimension: 1024
+    mimo:
+      api-key: ${AI_EMBEDDING_API_KEY:${MIMO_API_KEY:}}
+      base-url: ${AI_EMBEDDING_BASE_URL:https://api.xiaomimimo.com/v1}
+      model: ${AI_EMBEDDING_MODEL:mimo-embedding-v1}
+      timeout-seconds: 10
+  memory:
+    enabled: true
+    top-k: 5
+    distance-threshold: 0.45
+    rebuild-batch-size: 200
+    rebuild-cooldown-seconds: 60
+```
+
+- [ ] **Step 3: Smoke test** — `docker compose up redis -d && docker exec fitcoach-redis redis-cli FT._LIST` → returns empty array (no error → RediSearch is loaded).
+- [ ] **Step 4: Commit** — `git commit -m "chore(infra): switch redis to redis-stack + add ai.memory config"`
+
+---
+
+### Task T40: EmbeddingProvider interface + Mock + OpenAI-compatible impls
+
+**Files:**
+- Create: `src/main/java/com/fitcoach/infra/ai/embedding/EmbeddingProvider.java`
+- Create: `src/main/java/com/fitcoach/infra/ai/embedding/MockEmbeddingProvider.java`
+- Create: `src/main/java/com/fitcoach/infra/ai/embedding/OpenAiCompatEmbeddingProvider.java`
+- Create: `src/main/java/com/fitcoach/infra/ai/embedding/EmbeddingConfig.java`
+- Create: `src/test/java/com/fitcoach/infra/ai/embedding/MockEmbeddingProviderTest.java`
+
+- [ ] **Step 1: Interface**
+
+```java
+package com.fitcoach.infra.ai.embedding;
+
+import java.util.List;
+
+public interface EmbeddingProvider {
+    List<float[]> embed(List<String> texts);
+    int dimension();
+    String name();
+}
+```
+
+- [ ] **Step 2: MockEmbeddingProvider** — bean `@ConditionalOnProperty(name="ai.embedding.provider", havingValue="mock", matchIfMissing=true)`. Implementation: SHA-256(text) → seed `Random` → 1024 floats in `[-1,1]` → L2-normalize. Pure Java, zero external deps.
+- [ ] **Step 3: OpenAiCompatEmbeddingProvider** — bean `@ConditionalOnProperty(name="ai.embedding.provider", havingValue="mimo")`. Uses Spring 6 `RestClient`. POST `${base-url}/embeddings` with `{"model": cfg.model, "input": texts}`. Parse response → `data[].embedding` → `float[]`. 10s timeout. Wrap exceptions as `BusinessException(503, "Embedding provider unavailable")`. On startup log a warning if `provider=mimo` but key blank, and degrade to mock (mirrors MiMo coach pattern).
+- [ ] **Step 4: EmbeddingConfig** — `@ConfigurationProperties(prefix="ai.embedding")` record holding `enabled, provider, dimension, mimo`.
+- [ ] **Step 5: Test** — same input twice → same output array; 1024 length; L2 norm in [0.99, 1.01].
+- [ ] **Step 6: `mvn -q -Dtest=MockEmbeddingProviderTest test`** passes.
+- [ ] **Step 7: Commit** — `git commit -m "feat(embedding): EmbeddingProvider interface + Mock + OpenAI-compat impls"`
+
+---
+
+### Task T41: VectorMemoryService (RediSearch index + KNN search)
+
+**Files:**
+- Create: `src/main/java/com/fitcoach/infra/ai/memory/VectorMemoryService.java`
+- Create: `src/main/java/com/fitcoach/infra/ai/memory/Memory.java`
+- Create: `src/main/java/com/fitcoach/infra/ai/memory/MemoryConfig.java`
+- Create: `src/test/java/com/fitcoach/infra/ai/memory/VectorMemoryServiceIT.java`
+
+- [ ] **Step 1: Memory record** — `record Memory(Long sessionId, Long userId, String action, int score, long createdAt, String text, double distance)`.
+- [ ] **Step 2: MemoryConfig** — `@ConfigurationProperties(prefix="ai.memory")` record `(boolean enabled, int topK, double distanceThreshold, int rebuildBatchSize, int rebuildCooldownSeconds)`.
+- [ ] **Step 3: VectorMemoryService**
+
+```java
+@Service
+@RequiredArgsConstructor
+@Slf4j
+public class VectorMemoryService {
+    private final StringRedisTemplate template;       // for FT.* via execute()
+    private final RedisTemplate<String, byte[]> bytesTemplate; // for HSET embedding
+    private final EmbeddingProvider embedding;
+    private final MemoryConfig cfg;
+    private static final String INDEX = "idx:session:vec";
+    private static final String KEY_PREFIX = "sess:vec:";
+
+    @PostConstruct
+    public void ensureIndex() {
+        if (!cfg.enabled()) return;
+        try {
+            template.execute((RedisCallback<Object>) c -> c.execute("FT.INFO", INDEX.getBytes()));
+            log.info("RediSearch index {} already exists", INDEX);
+        } catch (Exception e) {
+            createIndex();
+        }
+    }
+    // createIndex(): FT.CREATE idx:session:vec ON HASH PREFIX 1 sess:vec: SCHEMA
+    //   user_id TAG SORTABLE  action TAG  score NUMERIC SORTABLE  created NUMERIC SORTABLE
+    //   text TEXT NOSTEM  embedding VECTOR HNSW 8 TYPE FLOAT32 DIM 1024 DISTANCE_METRIC COSINE M 16 EF_CONSTRUCTION 200
+
+    public void index(SessionDoc doc) { ... }      // HSET sess:vec:<sessionId>
+    public List<Memory> searchSimilar(Long uid, float[] query, int k) { ... }   // FT.SEARCH KNN
+    public int reindexUser(Long uid, List<SessionDoc> docs) { ... }
+}
+```
+
+Use `RedisCallback` to drop down to raw RESP for `FT.SEARCH`. Helper `floatsToLeBytes(float[])` writes IEEE 754 little-endian. Parse FT.SEARCH reply: `[total, key1, [field, val, ...], key2, ...]`.
+
+- [ ] **Step 4: IT** — `@Testcontainers` with `redis/redis-stack-server:7.4.0-v0`. Skip if Docker not available (use `@EnabledIfSystemProperty(named="docker.available", matches="true")` and a static initializer that checks `DockerClientFactory.instance().isDockerAvailable()`). Insert 5 docs for u=1, 5 for u=2 with embeddings; KNN(u=1, K=3) returns only u=1 docs.
+- [ ] **Step 5: `mvn -q -Dtest=VectorMemoryServiceIT test`** passes (or is `Skipped` when Docker unavailable — log clearly).
+- [ ] **Step 6: Commit** — `git commit -m "feat(memory): VectorMemoryService over RediSearch (FT.CREATE + KNN)"`
+
+---
+
+### Task T42: VectorMemoryListener (async embed on session-create)
+
+**Files:**
+- Create: `src/main/java/com/fitcoach/infra/ai/memory/VectorMemoryListener.java`
+- Create: `src/main/java/com/fitcoach/infra/ai/memory/SessionDoc.java`
+- Modify: `src/main/java/com/fitcoach/session/SessionService.java` (no change if T36 already publishes the event — just verify)
+
+- [ ] **Step 1: SessionDoc** — record holding the fields VectorMemoryService needs (sessionId, userId, action, score, createdAt epoch, text built from action+score+notes).
+- [ ] **Step 2: Listener**
+
+```java
+@Component
+@RequiredArgsConstructor
+@Slf4j
+public class VectorMemoryListener {
+    private final SessionRepository sessionRepo;
+    private final VectorMemoryService memory;
+    private final EmbeddingProvider embedding;
+    private final MemoryConfig cfg;
+
+    @Async
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void on(SessionCreatedEvent evt) {
+        if (!cfg.enabled()) return;
+        try {
+            var s = sessionRepo.findById(evt.sessionId()).orElse(null);
+            if (s == null) return;
+            var doc = SessionDoc.from(s);
+            float[] vec = embedding.embed(List.of(doc.text())).get(0);
+            memory.index(doc, vec);
+        } catch (Exception e) {
+            log.warn("vector memory index failed sid={} : {}", evt.sessionId(), e.toString());
+        }
+    }
+}
+```
+
+- [ ] **Step 3: Verify** — confirm `SessionService.create` already publishes `SessionCreatedEvent` (added in T36). If not, add it now.
+- [ ] **Step 4: Quick smoke** — start dev backend with redis-stack, register a user, POST a session, then `redis-cli FT.SEARCH idx:session:vec '*' LIMIT 0 5` shows the document.
+- [ ] **Step 5: Commit** — `git commit -m "feat(memory): async embed sessions on commit (RAG write path)"`
+
+---
+
+### Task T43: Inject memory into Coach prompt (RAG read path)
+
+**Files:**
+- Modify: `src/main/java/com/fitcoach/infra/ai/CoachContext.java`
+- Modify: `src/main/java/com/fitcoach/infra/ai/CoachPromptTemplates.java`
+- Modify: `src/main/java/com/fitcoach/coach/CoachService.java`
+- Modify: `src/test/java/com/fitcoach/coach/CoachServiceTest.java`
+
+- [ ] **Step 1: Add field** `List<Memory> recentMemories` to `CoachContext` (default empty list).
+- [ ] **Step 2: CoachService** — for `feedback`/`suggestion`/`weeklyPlan`, after building the base context:
+
+```java
+if (memoryCfg.enabled()) {
+    String queryText = (ctx.userProfileSummary() == null ? "" : ctx.userProfileSummary())
+                     + "\n请求: " + ctx.requestKind();
+    try {
+        float[] qv = embedding.embed(List.of(queryText)).get(0);
+        var hits = memory.searchSimilar(uid, qv, memoryCfg.topK()).stream()
+                         .filter(m -> m.distance() <= memoryCfg.distanceThreshold())
+                         .toList();
+        ctx = ctx.withMemories(hits);
+    } catch (Exception e) {
+        log.warn("memory.search failed for uid={} : {}", uid, e.toString());
+    }
+}
+```
+
+- [ ] **Step 3: CoachPromptTemplates** — when `ctx.recentMemories` non-empty, add system line `"参考用户最近的训练记录(recentMemories)调整建议,但不要逐条复述。"` and append `"recentMemories": [{ "action":..,"score":..,"text":..,"daysAgo":..}, ...]` to the user-message JSON.
+- [ ] **Step 4: Test** — extend `CoachServiceTest`: with memory.enabled=true and Mock provider returning consistent vectors, mock `VectorMemoryService` to return 2 hits → assert provider's invocation has `ctx.recentMemories.size()==2`. With memory.enabled=false → empty.
+- [ ] **Step 5: `mvn -q -Dtest=CoachServiceTest test`** passes.
+- [ ] **Step 6: Commit** — `git commit -m "feat(coach): RAG-inject recent training memories into MiMo prompt"`
+
+---
+
+### Task T44: Memory rebuild endpoint + admin variant
+
+**Files:**
+- Create: `src/main/java/com/fitcoach/user/MemoryController.java`
+- Modify: `src/main/java/com/fitcoach/admin/AdminController.java` (add `POST /api/admin/memory/rebuild`)
+- Modify: `src/main/java/com/fitcoach/infra/ai/memory/VectorMemoryService.java` (add `rebuildForUser` with cooldown)
+- Create: `src/test/java/com/fitcoach/user/MemoryRebuildIT.java`
+
+- [ ] **Step 1: MemoryController**
+
+```java
+@RestController
+@RequestMapping("/api/users/me/memory")
+@RequiredArgsConstructor
+public class MemoryController {
+    private final VectorMemoryService memory;
+
+    @PostMapping("/rebuild")
+    public ApiResult<Map<String,Object>> rebuild() {
+        Long uid = SecurityUtil.currentUserId();
+        var r = memory.rebuildForUser(uid);
+        return ApiResult.ok(Map.of("reembedded", r.count(), "took", r.tookMs()));
+    }
+}
+```
+
+- [ ] **Step 2: VectorMemoryService.rebuildForUser(uid)**:
+  - Cooldown check: read `memory:rebuild:cooldown:<uid>` from Redis; if present and TTL > 0, throw `BusinessException(429, "Memory rebuild cooldown active, retry in N s")`.
+  - Page through `sessionRepo.findByUserIdOrderByCreatedAtDesc(uid, PageRequest.of(0, 500))`.
+  - Embed in batches of `cfg.rebuildBatchSize()`.
+  - Pipeline `HSET` writes (Lettuce `executePipelined`).
+  - Set cooldown key with TTL `cfg.rebuildCooldownSeconds()`.
+  - Return `{count, tookMs}`.
+- [ ] **Step 3: AdminController** — add `POST /api/admin/memory/rebuild?userId=<id>` that calls the same service after `@PreAuthorize("hasRole('ADMIN')")`.
+- [ ] **Step 4: IT** — register a user, create 3 sessions, POST `/api/users/me/memory/rebuild` → `count==3`. Second call within 60s → 429.
+- [ ] **Step 5: `mvn -q -Dtest=MemoryRebuildIT test`** passes (skip if Docker unavailable).
+- [ ] **Step 6: Commit** — `git commit -m "feat(memory): rebuild endpoint + admin variant + cooldown"`
+
+---
