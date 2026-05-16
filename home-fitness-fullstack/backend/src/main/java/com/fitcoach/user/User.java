@@ -47,6 +47,7 @@ public class User {
 
     /** USER · ADMIN · GUEST */
     @Column(nullable = false, length = 16)
+    @lombok.Builder.Default
     private String role = "USER";
 
     /** 登录类型: email / phone / wechat / guest */
@@ -61,8 +62,10 @@ public class User {
 
     /** ACTIVE · DISABLED */
     @Column(nullable = false, length = 16)
+    @lombok.Builder.Default
     private String status = "ACTIVE";
 
+    @lombok.Builder.Default
     private Integer weeklyGoal = 50;
 
     @CreatedDate

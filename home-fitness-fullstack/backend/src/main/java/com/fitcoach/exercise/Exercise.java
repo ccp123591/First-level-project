@@ -42,7 +42,9 @@ public class Exercise {
     private Integer defaultThresholdDown;
     private Integer defaultThresholdUp;
 
+    @lombok.Builder.Default
     private Boolean enabled = true;
 
+    @lombok.Builder.Default
     private Integer sortOrder = 0;
 }

@@ -44,11 +44,14 @@ public class Plan {
     @Column(columnDefinition = "TEXT")
     private String itemsJson;
 
+    @lombok.Builder.Default
     private Boolean official = false;
+    @lombok.Builder.Default
     private Boolean published = true;
 
     private Long authorId;
 
+    @lombok.Builder.Default
     private Integer adoptCount = 0;
 
     @CreatedDate
