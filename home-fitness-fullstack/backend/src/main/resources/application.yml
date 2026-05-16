@@ -80,6 +80,16 @@ springdoc:
     title: FitCoach API
     version: 3.0.0
 
+# Actuator 健康检查（只暴露最小必要端点）
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: when-authorized
+
 # 日志
 logging:
   level:

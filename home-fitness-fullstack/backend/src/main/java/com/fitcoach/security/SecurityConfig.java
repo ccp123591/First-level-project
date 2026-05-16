@@ -45,7 +45,9 @@ public class SecurityConfig {
                     "/h2-console/**",
                     "/error",
                     "/uploads/**",
-                    "/actuator/**"
+                    "/actuator/health",
+                    "/actuator/health/**",
+                    "/actuator/info"
                 ).permitAll()
                 // 放行：公开的只读接口
                 .requestMatchers(
@@ -54,7 +56,8 @@ public class SecurityConfig {
                     "/api/plans/official",
                     "/api/leaderboard/**"
                 ).permitAll()
-                // 管理员接口
+                // 管理员接口（含 actuator metrics）
+                .requestMatchers("/actuator/**").hasRole("ADMIN")
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
                 // 其他需登录
                 .anyRequest().authenticated()
