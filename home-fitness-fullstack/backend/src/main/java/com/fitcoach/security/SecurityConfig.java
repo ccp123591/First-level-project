@@ -23,6 +23,7 @@ public class SecurityConfig {
 
     private final JwtAuthFilter jwtAuthFilter;
     private final RateLimitFilter rateLimitFilter;
+    private final RequestLoggingFilter requestLoggingFilter;
     private final RestAuthEntryPoints.RestAuthenticationEntryPoint authEntryPoint;
     private final RestAuthEntryPoints.RestAccessDeniedHandler accessDeniedHandler;
 
@@ -65,10 +66,20 @@ public class SecurityConfig {
                 // 其他需登录
                 .anyRequest().authenticated()
             )
-            .headers(h -> h.frameOptions(f -> f.disable()))  // H2 console iframe
+            .headers(h -> h
+                .frameOptions(f -> f.disable())                    // H2 console iframe
+                .contentTypeOptions(o -> {})                       // X-Content-Type-Options: nosniff
+                .referrerPolicy(r -> r.policy(
+                    org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter.ReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN))
+                .httpStrictTransportSecurity(hsts -> hsts
+                    .includeSubDomains(true)
+                    .maxAgeInSeconds(31536000))
+                .addHeaderWriter(new org.springframework.security.web.header.writers.StaticHeadersWriter(
+                    "Permissions-Policy", "camera=(self), microphone=(), geolocation=()")))
             .exceptionHandling(ex -> ex
                 .authenticationEntryPoint(authEntryPoint)
                 .accessDeniedHandler(accessDeniedHandler))
+            .addFilterBefore(requestLoggingFilter, UsernamePasswordAuthenticationFilter.class)
             .addFilterBefore(rateLimitFilter, UsernamePasswordAuthenticationFilter.class)
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 

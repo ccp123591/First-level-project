@@ -11,12 +11,16 @@ INSERT INTO t_exercise (code, name, description, kind, default_threshold_down, d
 ('plank',       '平板支撑', '核心力量',           'timed', 0, 0, true, 6),
 ('jumpingJack', '开合跳',   '有氧燃脂',           'rep', 0, 0, true, 7);
 
--- 官方训练计划
+-- 官方训练计划（dev 的 items_json 与 prod V3 一致，便于前端真实联调）
 INSERT INTO t_plan (title, description, level, cover, days, official, published, author_id, adopt_count, created_at, items_json) VALUES
-('新手入门 7 天', '零基础友好，每天 15 分钟', 'NEWBIE', '#00F0FF', 7, true, true, 1, 128, CURRENT_TIMESTAMP, '[]'),
-('核心强化 14 天', '针对核心力量的系统训练', 'INTERMEDIATE', '#7C6AFF', 14, true, true, 1, 56, CURRENT_TIMESTAMP, '[]'),
-('30 天俯卧撑挑战', '从 10 个到 100 个的进阶', 'INTERMEDIATE', '#FF9F43', 30, true, true, 1, 82, CURRENT_TIMESTAMP, '[]'),
-('柔韧性提升', '每天 20 分钟拉伸', 'NEWBIE', '#00E58A', 10, true, true, 1, 45, CURRENT_TIMESTAMP, '[]');
+('新手入门 7 天', '零基础友好，每天 15 分钟', 'NEWBIE', '#00F0FF', 7, true, true, 1, 128, CURRENT_TIMESTAMP,
+ '[{"day":1,"items":[{"action":"squat","reps":10},{"action":"stretch","reps":10}]},{"day":2,"items":[{"action":"pushup","reps":8},{"action":"bridge","reps":12}]},{"day":3,"items":[{"action":"jumpingJack","reps":20},{"action":"stretch","reps":10}]},{"day":4,"items":[{"action":"squat","reps":12},{"action":"plank","duration":30}]},{"day":5,"items":[{"action":"pushup","reps":10},{"action":"lunge","reps":10}]},{"day":6,"items":[{"action":"bridge","reps":15},{"action":"stretch","reps":12}]},{"day":7,"items":[{"action":"squat","reps":15},{"action":"plank","duration":45}]}]'),
+('核心强化 14 天', '针对核心力量的系统训练', 'INTERMEDIATE', '#7C6AFF', 14, true, true, 1, 56, CURRENT_TIMESTAMP,
+ '[{"day":1,"items":[{"action":"plank","duration":30}]},{"day":2,"items":[{"action":"plank","duration":35}]},{"day":3,"items":[{"action":"plank","duration":40}]},{"day":4,"items":[{"action":"plank","duration":45}]},{"day":5,"items":[{"action":"plank","duration":50}]},{"day":6,"items":[{"action":"plank","duration":55}]},{"day":7,"items":[{"action":"plank","duration":60}]}]'),
+('30 天俯卧撑挑战', '从 10 个到 100 个的进阶', 'INTERMEDIATE', '#FF9F43', 30, true, true, 1, 82, CURRENT_TIMESTAMP,
+ '[{"day":1,"items":[{"action":"pushup","reps":10}]},{"day":7,"items":[{"action":"pushup","reps":28}]},{"day":14,"items":[{"action":"pushup","reps":49}]},{"day":21,"items":[{"action":"pushup","reps":70}]},{"day":30,"items":[{"action":"pushup","reps":100}]}]'),
+('柔韧性提升', '每天 20 分钟拉伸', 'NEWBIE', '#00E58A', 10, true, true, 1, 45, CURRENT_TIMESTAMP,
+ '[{"day":1,"items":[{"action":"stretch","reps":10},{"action":"bridge","reps":10}]},{"day":5,"items":[{"action":"stretch","reps":18},{"action":"bridge","reps":18}]},{"day":10,"items":[{"action":"stretch","reps":30},{"action":"bridge","reps":30}]}]');
 
 -- 徽章
 INSERT INTO t_badge (code, name, description, icon, sort_order, criteria_json) VALUES
