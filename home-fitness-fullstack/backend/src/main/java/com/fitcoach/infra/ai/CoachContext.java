@@ -43,6 +43,10 @@ public class CoachContext {
     /** 近 7 天平均情感得分 (-1..1) */
     private Double recentEmotionScore;
 
+    // —— 用户画像（profile module 注入；缺省 null） ——
+    /** 由 ProfileExtractionService 产出的中文 1 句话画像。 */
+    private String userProfileSummary;
+
     @Data
     @Builder
     @NoArgsConstructor

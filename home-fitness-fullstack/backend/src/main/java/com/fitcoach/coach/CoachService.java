@@ -9,8 +9,11 @@ import com.fitcoach.infra.ai.CoachAiResponse;
 import com.fitcoach.infra.ai.CoachContext;
 import com.fitcoach.session.Session;
 import com.fitcoach.session.SessionRepository;
+import com.fitcoach.user.UserProfile;
+import com.fitcoach.user.UserProfileRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -32,6 +35,8 @@ public class CoachService {
     private final CoachFeedbackRepository fbRepo;
     private final AiCoachProvider provider;
     private final EmotionService emotionService;
+    /** 弱依赖：profile 缺失（dev 没建表 / module 未加载）不应导致 coach 失败 */
+    private final ObjectProvider<UserProfileRepository> profileRepoProvider;
 
     @Transactional
     public FeedbackResponse feedback(Long userId, Long sessionId) {
@@ -108,6 +113,16 @@ public class CoachService {
             }
         } catch (Exception ignored) {
             // emotion 是可选输入，AI coach 不应因之失败
+        }
+
+        // 注入用户画像摘要（弱依赖；缺失或异常都跳过）
+        try {
+            UserProfileRepository repo = profileRepoProvider.getIfAvailable();
+            if (repo != null) {
+                repo.findByUserId(userId).map(UserProfile::getSummaryText)
+                        .ifPresent(b::userProfileSummary);
+            }
+        } catch (Exception ignored) {
         }
 
         if (current != null) {

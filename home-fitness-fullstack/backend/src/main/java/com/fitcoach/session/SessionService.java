@@ -3,6 +3,7 @@ package com.fitcoach.session;
 import com.fitcoach.challenge.ChallengeService;
 import com.fitcoach.common.PageResult;
 import com.fitcoach.exception.BusinessException;
+import com.fitcoach.user.ProfileExtractionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
@@ -23,6 +24,8 @@ public class SessionService {
     private final SessionRepository sessionRepo;
     /** ObjectProvider 防止循环依赖；ChallengeService 可选下游 */
     private final ObjectProvider<ChallengeService> challengeServiceProvider;
+    /** Profile 同样弱依赖 */
+    private final ObjectProvider<ProfileExtractionService> profileServiceProvider;
 
     @Transactional
     public Session create(Long userId, Map<String, Object> body) {
@@ -49,6 +52,13 @@ public class SessionService {
             if (cs != null) cs.onSessionCreated(userId, saved.getAction(), saved.getReps());
         } catch (Exception e) {
             log.warn("[session] challenge progress sync failed: {}", e.getMessage());
+        }
+        // 钩子：刷新用户画像（best-effort，失败不影响 session 写入）
+        try {
+            ProfileExtractionService ps = profileServiceProvider.getIfAvailable();
+            if (ps != null) ps.refresh(userId);
+        } catch (Exception e) {
+            log.warn("[session] profile refresh failed: {}", e.getMessage());
         }
         return saved;
     }

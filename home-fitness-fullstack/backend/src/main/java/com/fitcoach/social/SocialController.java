@@ -139,31 +139,7 @@ public class SocialController {
         }).toList());
     }
 
-    /* ---------- 挑战赛（简版 · 配置驱动） ---------- */
-
-    @Operation(summary = "挑战赛列表")
-    @GetMapping("/challenges")
-    public ApiResult<List<Map<String, Object>>> challenges() {
-        return ApiResult.ok(List.of(
-            Map.of("id", 1, "title", "30 天深蹲挑战",   "action", "squat",  "targetReps", 1000, "deadline", "2026-05-01", "participants", 256),
-            Map.of("id", 2, "title", "7 天俯卧撑马拉松", "action", "pushup", "targetReps", 300,  "deadline", "2026-04-26", "participants", 89)
-        ));
-    }
-
-    @Operation(summary = "加入挑战（占位）")
-    @PostMapping("/challenges/{id}/join")
-    public ApiResult<Void> join(@PathVariable Long id) {
-        // 需 Challenge/ChallengeParticipant 表；此处保留简化：静态配置 + 不持久化
-        SecurityUtil.currentUserId();  // 仍需登录
-        return ApiResult.ok(null, "已加入");
-    }
-
-    @Operation(summary = "挑战排行（基于 Session 聚合）")
-    @GetMapping("/challenges/{id}/rank")
-    public ApiResult<List<Map<String, Object>>> challengeRank(@PathVariable Long id) {
-        // 暂返回本周榜前 10
-        return ApiResult.ok(List.of());
-    }
+    /* ---------- 挑战赛端点已迁移至 ChallengeController（Phase 5 T24） ---------- */
 
     /* ---------- helpers ---------- */
 
