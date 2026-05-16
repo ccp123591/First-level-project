@@ -68,6 +68,11 @@ ai:
     max-per-user: 500
     recall-top-k: 3
 
+# 环境建模 vision-svc
+vision:
+  base-url: ${VISION_BASE_URL:http://localhost:8081}
+  timeout-seconds: ${VISION_TIMEOUT_SECONDS:30}
+
 # 文件上传
 upload:
   dir: ./uploads
