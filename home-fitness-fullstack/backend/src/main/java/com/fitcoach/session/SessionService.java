@@ -1,8 +1,11 @@
 package com.fitcoach.session;
 
+import com.fitcoach.challenge.ChallengeService;
 import com.fitcoach.common.PageResult;
 import com.fitcoach.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -11,13 +14,15 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.util.*;
-import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class SessionService {
 
     private final SessionRepository sessionRepo;
+    /** ObjectProvider 防止循环依赖；ChallengeService 可选下游 */
+    private final ObjectProvider<ChallengeService> challengeServiceProvider;
 
     @Transactional
     public Session create(Long userId, Map<String, Object> body) {
@@ -36,7 +41,16 @@ public class SessionService {
         s.setCompletionScore(intVal(body.get("completionScore"), null));
         s.setSessionDate(str(body.get("sessionDate"), LocalDate.now().toString()));
         s.setNotes(str(body.get("notes"), null));
-        return sessionRepo.save(s);
+        Session saved = sessionRepo.save(s);
+
+        // 钩子：通知挑战赛子系统刷新进度（失败不影响 session 写入）
+        try {
+            ChallengeService cs = challengeServiceProvider.getIfAvailable();
+            if (cs != null) cs.onSessionCreated(userId, saved.getAction(), saved.getReps());
+        } catch (Exception e) {
+            log.warn("[session] challenge progress sync failed: {}", e.getMessage());
+        }
+        return saved;
     }
 
     public PageResult<Session> list(Long userId, int page, int size,
