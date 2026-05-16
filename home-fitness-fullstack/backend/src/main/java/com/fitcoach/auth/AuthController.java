@@ -22,6 +22,7 @@ import java.util.Map;
 public class AuthController {
 
     private final AuthService authService;
+    private final PasswordResetService passwordResetService;
 
     @Operation(summary = "邮箱密码登录")
     @PostMapping("/login/email")
@@ -79,6 +80,20 @@ public class AuthController {
         return ApiResult.ok(authService.currentUser(SecurityUtil.currentUserId()));
     }
 
+    @Operation(summary = "找回密码（发送重置邮件）")
+    @PostMapping("/password/forgot")
+    public ApiResult<Void> passwordForgot(@Valid @RequestBody PasswordForgotRequest req) {
+        passwordResetService.forgot(req.getEmail());
+        return ApiResult.ok(null, "如果该邮箱已注册，将收到重置邮件");
+    }
+
+    @Operation(summary = "应用密码重置")
+    @PostMapping("/password/reset")
+    public ApiResult<Void> passwordReset(@Valid @RequestBody PasswordResetRequest req) {
+        passwordResetService.reset(req.getToken(), req.getNewPassword());
+        return ApiResult.ok(null, "密码已更新");
+    }
+
     // ---- DTOs ----
 
     @Data
@@ -109,5 +124,16 @@ public class AuthController {
         @NotBlank @Email private String email;
         @NotBlank @Size(min = 8) private String password;
         private String nickname;
+    }
+
+    @Data
+    public static class PasswordForgotRequest {
+        @NotBlank @Email private String email;
+    }
+
+    @Data
+    public static class PasswordResetRequest {
+        @NotBlank private String token;
+        @NotBlank @Size(min = 8) private String newPassword;
     }
 }
