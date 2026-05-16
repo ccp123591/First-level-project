@@ -37,6 +37,12 @@ public class CoachContext {
     private Long recentTotalReps;
     private List<RecentSession> recentSessions;
 
+    // —— 近期情感（emotion module 注入；缺省 null 表示无数据） ——
+    /** 近 7 天主导情感：positive / neutral / negative */
+    private String recentDominantEmotion;
+    /** 近 7 天平均情感得分 (-1..1) */
+    private Double recentEmotionScore;
+
     @Data
     @Builder
     @NoArgsConstructor

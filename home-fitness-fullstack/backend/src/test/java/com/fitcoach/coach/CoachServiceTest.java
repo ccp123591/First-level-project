@@ -30,6 +30,7 @@ class CoachServiceTest {
     @Mock SessionRepository sessionRepo;
     @Mock CoachFeedbackRepository fbRepo;
     @Mock AiCoachProvider provider;
+    @Mock com.fitcoach.emotion.EmotionService emotionService;
 
     @InjectMocks CoachService service;
 

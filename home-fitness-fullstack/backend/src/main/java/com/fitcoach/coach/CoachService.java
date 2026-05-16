@@ -1,6 +1,8 @@
 package com.fitcoach.coach;
 
 import com.fitcoach.common.PageResult;
+import com.fitcoach.emotion.EmotionService;
+import com.fitcoach.emotion.EmotionSummary;
 import com.fitcoach.exception.BusinessException;
 import com.fitcoach.infra.ai.AiCoachProvider;
 import com.fitcoach.infra.ai.CoachAiResponse;
@@ -29,6 +31,7 @@ public class CoachService {
     private final SessionRepository sessionRepo;
     private final CoachFeedbackRepository fbRepo;
     private final AiCoachProvider provider;
+    private final EmotionService emotionService;
 
     @Transactional
     public FeedbackResponse feedback(Long userId, Long sessionId) {
@@ -95,6 +98,17 @@ public class CoachService {
                 .recentAvgScore(avgScore)
                 .recentTotalReps(totalReps)
                 .recentSessions(recentDtos);
+
+        // 注入最近 7 天情感（失败/无数据则跳过 — 不影响 coach 主流程）
+        try {
+            EmotionSummary es = emotionService.summary(userId, 7);
+            if (es != null && es.getTotal() > 0) {
+                b.recentDominantEmotion(es.getDominantEmotion())
+                        .recentEmotionScore(es.getAvgScore());
+            }
+        } catch (Exception ignored) {
+            // emotion 是可选输入，AI coach 不应因之失败
+        }
 
         if (current != null) {
             b.action(current.getAction())
