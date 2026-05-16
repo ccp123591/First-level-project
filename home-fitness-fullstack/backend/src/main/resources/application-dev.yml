@@ -19,3 +19,14 @@ spring:
     init:
       mode: always
       data-locations: classpath:data.sql
+      encoding: UTF-8
+
+  # 开发态：H2 + data.sql，Flyway 关闭（生产 prod profile 启用）
+  flyway:
+    enabled: false
+
+# 开发态：Redis 健康指示器关闭（本地未跑 Redis 时仍可启动），其它健康继续生效
+management:
+  health:
+    redis:
+      enabled: false

@@ -22,6 +22,8 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 public class SecurityConfig {
 
     private final JwtAuthFilter jwtAuthFilter;
+    private final RestAuthEntryPoints.RestAuthenticationEntryPoint authEntryPoint;
+    private final RestAuthEntryPoints.RestAccessDeniedHandler accessDeniedHandler;
 
     @Bean
     public PasswordEncoder passwordEncoder() {
@@ -63,6 +65,9 @@ public class SecurityConfig {
                 .anyRequest().authenticated()
             )
             .headers(h -> h.frameOptions(f -> f.disable()))  // H2 console iframe
+            .exceptionHandling(ex -> ex
+                .authenticationEntryPoint(authEntryPoint)
+                .accessDeniedHandler(accessDeniedHandler))
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
