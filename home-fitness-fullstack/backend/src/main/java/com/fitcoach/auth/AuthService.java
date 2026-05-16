@@ -2,6 +2,8 @@ package com.fitcoach.auth;
 
 import com.fitcoach.exception.BusinessException;
 import com.fitcoach.security.JwtUtil;
+import com.fitcoach.security.LoginAttemptService;
+import com.fitcoach.security.RefreshTokenStore;
 import com.fitcoach.user.User;
 import com.fitcoach.user.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -23,16 +25,27 @@ public class AuthService {
     private final PasswordEncoder encoder;
     private final JwtUtil jwtUtil;
     private final VerifyCodeService verifyCode;
+    private final RefreshTokenStore refreshTokenStore;
+    private final LoginAttemptService loginAttempts;
 
     /** 邮箱密码登录 */
     public Map<String, Object> loginByEmail(String email, String password) {
         if (email == null || password == null) throw new BusinessException(400, "邮箱和密码不能为空");
-        User u = userRepo.findByEmail(email.trim())
-                .orElseThrow(() -> new BusinessException(400, "账号或密码错误"));
-        if (!"ACTIVE".equals(u.getStatus())) throw new BusinessException(403, "账号已被禁用");
-        if (!encoder.matches(password, u.getPasswordHash())) {
+        String identifier = email.trim();
+        if (loginAttempts.isLocked(identifier)) {
+            throw new BusinessException(423, "账号已锁定，请稍后再试");
+        }
+        User u = userRepo.findByEmail(identifier).orElse(null);
+        if (u == null) {
+            loginAttempts.recordFailure(identifier);
             throw new BusinessException(400, "账号或密码错误");
         }
+        if (!"ACTIVE".equals(u.getStatus())) throw new BusinessException(403, "账号已被禁用");
+        if (!encoder.matches(password, u.getPasswordHash())) {
+            loginAttempts.recordFailure(identifier);
+            throw new BusinessException(400, "账号或密码错误");
+        }
+        loginAttempts.clear(identifier);
         return issueTokens(u);
     }
 
@@ -112,11 +125,30 @@ public class AuthService {
         }
         var claims = jwtUtil.parseToken(refreshToken);
         if (!"refresh".equals(claims.get("type"))) throw new BusinessException(401, "非 refresh token");
+        String jti = claims.getId();
+        if (refreshTokenStore.isRevoked(jti)) {
+            throw new BusinessException(401, "refresh token 已被吊销");
+        }
         Long uid = Long.valueOf(claims.getSubject());
         User u = userRepo.findById(uid).orElseThrow(() -> new BusinessException(401, "用户不存在"));
         Map<String, Object> r = new HashMap<>();
         r.put("accessToken", jwtUtil.generateAccessToken(u.getId(), u.getNickname(), u.getRole()));
         return r;
+    }
+
+    /** 登出：撤销 refresh token 的 jti（如果调用方携带）。 */
+    public void logout(String refreshToken) {
+        if (refreshToken == null || refreshToken.isBlank()) return;
+        try {
+            var claims = jwtUtil.parseToken(refreshToken);
+            if (!"refresh".equals(claims.get("type"))) return;
+            refreshTokenStore.revoke(claims.getId(),
+                    Long.valueOf(claims.getSubject()),
+                    claims.getExpiration(),
+                    "user-logout");
+        } catch (Exception ignored) {
+            // 无效 token 静默忽略：登出永远不应 4xx
+        }
     }
 
     public Map<String, Object> currentUser(Long userId) {

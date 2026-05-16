@@ -28,6 +28,7 @@ class AuthServicePhoneLoginTest {
     @Mock PasswordEncoder encoder;
     @Mock JwtUtil jwtUtil;
     @Mock VerifyCodeService verifyCode;
+    @Mock com.fitcoach.security.RefreshTokenStore refreshTokenStore;
 
     @InjectMocks AuthService service;
 

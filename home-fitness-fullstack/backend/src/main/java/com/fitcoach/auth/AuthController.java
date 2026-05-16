@@ -68,9 +68,12 @@ public class AuthController {
         return ApiResult.ok(authService.refresh(body.get("refreshToken")));
     }
 
-    @Operation(summary = "登出")
+    @Operation(summary = "登出（撤销 refresh token）")
     @PostMapping("/logout")
-    public ApiResult<Void> logout() {
+    public ApiResult<Void> logout(@RequestBody(required = false) Map<String, String> body) {
+        if (body != null) {
+            authService.logout(body.get("refreshToken"));
+        }
         return ApiResult.ok(null, "已退出");
     }
 

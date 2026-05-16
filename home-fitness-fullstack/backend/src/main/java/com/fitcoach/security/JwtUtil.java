@@ -49,11 +49,17 @@ public class JwtUtil {
         long expireMs = refreshTokenExpireDays * 24 * 3600 * 1000;
         return Jwts.builder()
                 .subject(String.valueOf(userId))
+                .id(java.util.UUID.randomUUID().toString())   // jti — 仅 refresh token 携带
                 .claim("type", "refresh")
                 .issuedAt(new Date(now))
                 .expiration(new Date(now + expireMs))
                 .signWith(getKey())
                 .compact();
+    }
+
+    /** 取 refresh token 的 jti（access token 没有 jti，会返回 null）。 */
+    public String getJti(String token) {
+        return parseToken(token).getId();
     }
 
     public Claims parseToken(String token) {
