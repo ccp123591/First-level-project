@@ -4,13 +4,18 @@ import com.fitcoach.common.ApiResult;
 import com.fitcoach.security.SecurityUtil;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
 
-@Tag(name = "01. 认证", description = "登录 / 注册 / 登出 / Token 刷新")
+@Tag(name = "01. 认证", description = "登录 / 注册 / 验证码 / Token 刷新")
 @RestController
 @RequestMapping("/api/auth")
 @RequiredArgsConstructor
@@ -18,22 +23,16 @@ public class AuthController {
 
     private final AuthService authService;
 
-    @Operation(summary = "邮箱登录")
+    @Operation(summary = "邮箱密码登录")
     @PostMapping("/login/email")
-    public ApiResult<Map<String, Object>> loginByEmail(@RequestBody LoginEmailDto dto) {
-        return ApiResult.ok(authService.loginByEmail(dto.getEmail(), dto.getPassword()));
+    public ApiResult<Map<String, Object>> loginByEmail(@Valid @RequestBody LoginEmailRequest req) {
+        return ApiResult.ok(authService.loginByEmail(req.getEmail(), req.getPassword()));
     }
 
-    @Operation(summary = "手机验证码登录（占位 · 未接短信）")
+    @Operation(summary = "手机验证码登录")
     @PostMapping("/login/phone")
-    public ApiResult<Map<String, Object>> loginByPhone(@RequestBody LoginPhoneDto dto) {
-        return ApiResult.fail(501, "短信登录未接入");
-    }
-
-    @Operation(summary = "微信一键登录（占位 · 未接 OpenAPI）")
-    @PostMapping("/login/wechat")
-    public ApiResult<Map<String, Object>> loginByWechat(@RequestBody Map<String, String> body) {
-        return ApiResult.fail(501, "微信登录未接入");
+    public ApiResult<Map<String, Object>> loginByPhone(@Valid @RequestBody LoginPhoneRequest req) {
+        return ApiResult.ok(authService.loginByPhone(req.getPhone(), req.getCode()));
     }
 
     @Operation(summary = "游客登录（设备 ID）")
@@ -42,22 +41,24 @@ public class AuthController {
         return ApiResult.ok(authService.loginAsGuest(body.get("deviceId")));
     }
 
-    @Operation(summary = "发送短信验证码（占位）")
+    @Operation(summary = "发送短信验证码")
     @PostMapping("/sms/send")
-    public ApiResult<Void> sendSms(@RequestBody Map<String, String> body) {
-        return ApiResult.fail(501, "短信服务未接入");
+    public ApiResult<Void> sendSms(@Valid @RequestBody SendCodeRequest req) {
+        authService.sendCode("sms", req.getTarget(), req.getPurpose());
+        return ApiResult.ok(null, "已发送");
     }
 
-    @Operation(summary = "发送邮箱验证码（占位）")
+    @Operation(summary = "发送邮箱验证码")
     @PostMapping("/email/send")
-    public ApiResult<Void> sendEmail(@RequestBody Map<String, String> body) {
-        return ApiResult.fail(501, "邮件服务未接入");
+    public ApiResult<Void> sendEmail(@Valid @RequestBody SendCodeRequest req) {
+        authService.sendCode("email", req.getTarget(), req.getPurpose());
+        return ApiResult.ok(null, "已发送");
     }
 
-    @Operation(summary = "注册账号")
+    @Operation(summary = "注册账号（邮箱）")
     @PostMapping("/register")
-    public ApiResult<Map<String, Object>> register(@RequestBody RegisterDto dto) {
-        return ApiResult.ok(authService.register(dto.getEmail(), dto.getPassword(), dto.getNickname()));
+    public ApiResult<Map<String, Object>> register(@Valid @RequestBody RegisterRequest req) {
+        return ApiResult.ok(authService.register(req.getEmail(), req.getPassword(), req.getNickname()));
     }
 
     @Operation(summary = "刷新 Access Token")
@@ -69,7 +70,6 @@ public class AuthController {
     @Operation(summary = "登出")
     @PostMapping("/logout")
     public ApiResult<Void> logout() {
-        // 无状态 JWT：客户端丢弃 token 即可；后续如需加 refresh 黑名单再扩展
         return ApiResult.ok(null, "已退出");
     }
 
@@ -79,7 +79,35 @@ public class AuthController {
         return ApiResult.ok(authService.currentUser(SecurityUtil.currentUserId()));
     }
 
-    @Data public static class LoginEmailDto  { private String email; private String password; }
-    @Data public static class LoginPhoneDto  { private String phone; private String code; }
-    @Data public static class RegisterDto    { private String email; private String password; private String nickname; }
+    // ---- DTOs ----
+
+    @Data
+    public static class LoginEmailRequest {
+        @NotBlank @Email private String email;
+        @NotBlank @Size(min = 6) private String password;
+    }
+
+    @Data
+    public static class LoginPhoneRequest {
+        @NotBlank
+        @Pattern(regexp = "1[3-9]\\d{9}", message = "手机号格式不正确")
+        private String phone;
+        @NotBlank
+        @Pattern(regexp = "\\d{6}", message = "验证码必须为 6 位数字")
+        private String code;
+    }
+
+    @Data
+    public static class SendCodeRequest {
+        @NotBlank private String target;          // phone 或 email
+        @Pattern(regexp = "login|reset", message = "purpose 只能为 login 或 reset")
+        private String purpose;
+    }
+
+    @Data
+    public static class RegisterRequest {
+        @NotBlank @Email private String email;
+        @NotBlank @Size(min = 8) private String password;
+        private String nickname;
+    }
 }

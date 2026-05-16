@@ -22,6 +22,7 @@ public class AuthService {
     private final UserRepository userRepo;
     private final PasswordEncoder encoder;
     private final JwtUtil jwtUtil;
+    private final VerifyCodeService verifyCode;
 
     /** 邮箱密码登录 */
     public Map<String, Object> loginByEmail(String email, String password) {
@@ -33,6 +34,34 @@ public class AuthService {
             throw new BusinessException(400, "账号或密码错误");
         }
         return issueTokens(u);
+    }
+
+    /** 手机验证码登录 — 校验通过后查/建用户。 */
+    @Transactional
+    public Map<String, Object> loginByPhone(String phone, String code) {
+        if (phone == null || phone.isBlank()) throw new BusinessException(400, "phone 不能为空");
+        if (!verifyCode.verify("sms", phone, "login", code)) {
+            throw new BusinessException(400, "验证码无效或已过期");
+        }
+        User u = userRepo.findByPhone(phone).orElseGet(() -> {
+            User fresh = User.builder()
+                    .phone(phone)
+                    .nickname("用户_" + phone.substring(Math.max(0, phone.length() - 4)))
+                    .role("USER")
+                    .loginType("phone")
+                    .status("ACTIVE")
+                    .weeklyGoal(50)
+                    .passwordHash(encoder.encode(UUID.randomUUID().toString()))
+                    .build();
+            return userRepo.save(fresh);
+        });
+        if (!"ACTIVE".equals(u.getStatus())) throw new BusinessException(403, "账号已被禁用");
+        return issueTokens(u);
+    }
+
+    /** 发送验证码：channel ∈ {sms, email}, purpose ∈ {login, reset}。 */
+    public void sendCode(String channel, String target, String purpose) {
+        verifyCode.generate(channel, target, purpose);
     }
 
     /** 注册 */
@@ -110,6 +139,7 @@ public class AuthService {
         m.put("id", u.getId());
         m.put("nickname", u.getNickname());
         m.put("email", u.getEmail());
+        m.put("phone", u.getPhone());
         m.put("avatar", u.getAvatar() == null ? "" : u.getAvatar());
         m.put("role", u.getRole());
         m.put("weeklyGoal", u.getWeeklyGoal());
