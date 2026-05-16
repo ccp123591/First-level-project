@@ -48,16 +48,18 @@ jwt:
   access-token-expire-hours: 2
   refresh-token-expire-days: 30
 
-# AI 教练配置（Claude / OpenAI 占位）
+# AI 教练配置（mock / mimo）
 ai:
   coach:
     enabled: true
-    provider: mock        # mock | claude | openai
-    claude:
-      api-key: ""
-      base-url: https://api.anthropic.com/v1
-      model: claude-haiku-4-5-20251001
-      max-tokens: 500
+    provider: ${AI_COACH_PROVIDER:mock}        # mock | mimo
+    mimo:
+      api-key: ${MIMO_API_KEY:}
+      base-url: ${MIMO_BASE_URL:https://api.xiaomimimo.com/v1}
+      model: ${MIMO_MODEL:mimo-v2-flash}
+      max-tokens: 600
+      temperature: 0.7
+      timeout-seconds: 20
 
 # 文件上传
 upload:
