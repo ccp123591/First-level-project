@@ -47,6 +47,10 @@ public class CoachContext {
     /** 由 ProfileExtractionService 产出的中文 1 句话画像。 */
     private String userProfileSummary;
 
+    // —— RAG 召回（vector memory module 注入；缺省 null） ——
+    /** Top-K 历史训练记忆，用于 prompt 中的相关上下文。 */
+    private String relevantHistory;
+
     @Data
     @Builder
     @NoArgsConstructor

@@ -7,6 +7,7 @@ import com.fitcoach.exception.BusinessException;
 import com.fitcoach.infra.ai.AiCoachProvider;
 import com.fitcoach.infra.ai.CoachAiResponse;
 import com.fitcoach.infra.ai.CoachContext;
+import com.fitcoach.infra.memory.VectorMemoryService;
 import com.fitcoach.session.Session;
 import com.fitcoach.session.SessionRepository;
 import com.fitcoach.user.UserProfile;
@@ -37,6 +38,8 @@ public class CoachService {
     private final EmotionService emotionService;
     /** 弱依赖：profile 缺失（dev 没建表 / module 未加载）不应导致 coach 失败 */
     private final ObjectProvider<UserProfileRepository> profileRepoProvider;
+    /** 弱依赖：向量记忆同样可选 */
+    private final ObjectProvider<VectorMemoryService> memoryServiceProvider;
 
     @Transactional
     public FeedbackResponse feedback(Long userId, Long sessionId) {
@@ -121,6 +124,21 @@ public class CoachService {
             if (repo != null) {
                 repo.findByUserId(userId).map(UserProfile::getSummaryText)
                         .ifPresent(b::userProfileSummary);
+            }
+        } catch (Exception ignored) {
+        }
+
+        // 注入 RAG 召回（弱依赖；缺失或异常都跳过）
+        try {
+            VectorMemoryService vm = memoryServiceProvider.getIfAvailable();
+            if (vm != null && vm.isEnabled()) {
+                String query = current != null
+                        ? (current.getActionLabel() != null ? current.getActionLabel() : current.getAction())
+                        : "训练";
+                String recall = vm.recall(userId, query, 3);
+                if (recall != null && !recall.isBlank()) {
+                    b.relevantHistory(recall);
+                }
             }
         } catch (Exception ignored) {
         }

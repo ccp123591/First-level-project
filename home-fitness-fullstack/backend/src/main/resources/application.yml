@@ -60,6 +60,13 @@ ai:
       max-tokens: 600
       temperature: 0.7
       timeout-seconds: 20
+  # 向量记忆 RAG
+  memory:
+    enabled: ${AI_MEMORY_ENABLED:true}
+    store: ${AI_MEMORY_STORE:memory}            # memory（dev/小规模）| redis（未来 RediSearch）
+    embedding: ${AI_MEMORY_EMBEDDING:mock}      # mock | openai
+    max-per-user: 500
+    recall-top-k: 3
 
 # 文件上传
 upload:

@@ -3,6 +3,7 @@ package com.fitcoach.session;
 import com.fitcoach.challenge.ChallengeService;
 import com.fitcoach.common.PageResult;
 import com.fitcoach.exception.BusinessException;
+import com.fitcoach.infra.memory.VectorMemoryService;
 import com.fitcoach.user.ProfileExtractionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -26,6 +27,8 @@ public class SessionService {
     private final ObjectProvider<ChallengeService> challengeServiceProvider;
     /** Profile 同样弱依赖 */
     private final ObjectProvider<ProfileExtractionService> profileServiceProvider;
+    /** 向量记忆同样弱依赖 */
+    private final ObjectProvider<VectorMemoryService> memoryServiceProvider;
 
     @Transactional
     public Session create(Long userId, Map<String, Object> body) {
@@ -60,7 +63,28 @@ public class SessionService {
         } catch (Exception e) {
             log.warn("[session] profile refresh failed: {}", e.getMessage());
         }
+        // 钩子：把本次 session 嵌入到向量记忆
+        try {
+            VectorMemoryService vm = memoryServiceProvider.getIfAvailable();
+            if (vm != null && vm.isEnabled()) {
+                vm.addSessionMemory(userId, saved.getId(), describeSession(saved));
+            }
+        } catch (Exception e) {
+            log.warn("[session] vector memory add failed: {}", e.getMessage());
+        }
         return saved;
+    }
+
+    /** 训练记录的文本化形式（喂给 embedding）。 */
+    private static String describeSession(Session s) {
+        StringBuilder sb = new StringBuilder();
+        sb.append(s.getSessionDate() == null ? "" : s.getSessionDate());
+        sb.append(" ").append(s.getActionLabel() == null ? s.getAction() : s.getActionLabel());
+        if (s.getReps() != null) sb.append(" ").append(s.getReps()).append("次");
+        if (s.getDuration() != null) sb.append(" ").append(s.getDuration()).append("秒");
+        if (s.getScore() != null) sb.append(" 得分").append(s.getScore());
+        if (s.getNotes() != null && !s.getNotes().isBlank()) sb.append(" 备注: ").append(s.getNotes());
+        return sb.toString();
     }
 
     public PageResult<Session> list(Long userId, int page, int size,
