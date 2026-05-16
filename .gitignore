@@ -47,5 +47,13 @@ logs/
 *.docx
 /CLAUDE.md
 
+# ===== 论文 / 截图 / 本地文档(不上传) =====
+/中文实践论文/
+/picture/
+/AGENTS.md
+/FitCoach技术文档.md
+/项目完成度清单.md
+/home-fitness-fullstack/CHANGELOG-*.md
+
 # ===== 早期纯前端版本(仅本地参考,不上传) =====
 /home-fitness-pwa/
