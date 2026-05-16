@@ -102,10 +102,10 @@ export const useConfigStore = defineStore('config', () => {
     }
     const meta = document.querySelector('meta[name="theme-color"]');
     const colors = {
-      dark: '#0a0a0f', light: '#F5F5F7', ocean: '#0B1628',
-      forest: '#0A1A0F', sunset: '#1A0E0A', 'purple-night': '#0E0A1A'
+      dark: '#141413', light: '#faf9f5', ocean: '#f7f5ef',
+      forest: '#f6f4ee', sunset: '#fbf7f1', 'purple-night': '#141413'
     };
-    if (meta) meta.content = colors[name] || '#0a0a0f';
+    if (meta) meta.content = colors[name] || '#141413';
   }
 
   return {

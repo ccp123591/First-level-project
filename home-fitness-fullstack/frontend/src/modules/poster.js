@@ -11,15 +11,15 @@ export function renderPoster(session, user) {
 
   // 背景渐变
   const bg = ctx.createLinearGradient(0, 0, W, H);
-  bg.addColorStop(0, '#0a0a0f');
-  bg.addColorStop(1, '#1a1a22');
+  bg.addColorStop(0, '#1a1816');
+  bg.addColorStop(1, '#2a2824');
   ctx.fillStyle = bg;
   ctx.fillRect(0, 0, W, H);
 
   // 顶部光晕
   const glow = ctx.createRadialGradient(W / 2, 200, 0, W / 2, 200, 500);
-  glow.addColorStop(0, 'rgba(0, 240, 255, .28)');
-  glow.addColorStop(1, 'rgba(0, 240, 255, 0)');
+  glow.addColorStop(0, 'rgba(217, 119, 87, .28)');
+  glow.addColorStop(1, 'rgba(217, 119, 87, 0)');
   ctx.fillStyle = glow;
   ctx.fillRect(0, 0, W, 600);
 
@@ -36,8 +36,8 @@ export function renderPoster(session, user) {
 
   // 动作
   const grad = ctx.createLinearGradient(0, 0, W, 0);
-  grad.addColorStop(0, '#00F0FF');
-  grad.addColorStop(1, '#7C6AFF');
+  grad.addColorStop(0, '#d97757');
+  grad.addColorStop(1, '#c96442');
   ctx.fillStyle = grad;
   ctx.font = '900 120px Inter, sans-serif';
   ctx.fillText(session.actionLabel || session.action || '训练', W / 2, 380);

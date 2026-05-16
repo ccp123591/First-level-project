@@ -30,6 +30,16 @@ function medal(r) {
   if (r === 3) return '🥉';
   return `#${r}`;
 }
+
+// 根据姓名生成暖色系 HSL 渐变（色相 15–55 的暖色区间）
+function avatarStyle(name) {
+  let h = 0;
+  for (const ch of name) h = (h * 31 + ch.charCodeAt(0)) | 0;
+  const hue = 15 + (Math.abs(h) % 40);
+  const c1 = `hsl(${hue}, 52%, 62%)`;
+  const c2 = `hsl(${(hue + 340) % 360}, 42%, 44%)`;
+  return { background: `linear-gradient(135deg, ${c1}, ${c2})` };
+}
 </script>
 
 <template>
@@ -49,20 +59,20 @@ function medal(r) {
     <div v-if="top3.length" class="podium">
       <div class="podium-card rank-2">
         <div class="rank-medal">🥈</div>
-        <div class="pd-avatar"></div>
+        <div class="pd-avatar" :style="avatarStyle(top3[1]?.name || '')">{{ (top3[1]?.name || '?')[0] }}</div>
         <div class="pd-name">{{ top3[1]?.name }}</div>
         <div class="pd-score">{{ top3[1]?.reps }} 次</div>
       </div>
       <div class="podium-card rank-1">
         <div class="rank-crown">👑</div>
         <div class="rank-medal">🥇</div>
-        <div class="pd-avatar"></div>
+        <div class="pd-avatar" :style="avatarStyle(top3[0]?.name || '')">{{ (top3[0]?.name || '?')[0] }}</div>
         <div class="pd-name">{{ top3[0]?.name }}</div>
         <div class="pd-score">{{ top3[0]?.reps }} 次</div>
       </div>
       <div class="podium-card rank-3">
         <div class="rank-medal">🥉</div>
-        <div class="pd-avatar"></div>
+        <div class="pd-avatar" :style="avatarStyle(top3[2]?.name || '')">{{ (top3[2]?.name || '?')[0] }}</div>
         <div class="pd-name">{{ top3[2]?.name }}</div>
         <div class="pd-score">{{ top3[2]?.reps }} 次</div>
       </div>
@@ -76,7 +86,7 @@ function medal(r) {
         :class="['rank-item', u.you ? 'you' : '']"
       >
         <div class="rk">{{ medal(u.rank) }}</div>
-        <div class="avatar" :style="{ background: 'var(--grad-primary)' }">{{ u.name[0] }}</div>
+        <div class="avatar" :style="avatarStyle(u.name)">{{ u.name[0] }}</div>
         <div class="info">
           <div class="n-row">
             <span class="n">{{ u.name }}</span>
@@ -97,7 +107,7 @@ function medal(r) {
 
 <style scoped>
 .page-head { margin-bottom: 16px; }
-.page-head h2 { font-size: 26px; font-weight: 800; background: var(--grad-primary); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+.page-head h2 { font-family: var(--font-heading); font-size: 28px; font-weight: 700; color: var(--text); letter-spacing: -.04em; }
 .page-head .sub { font-size: 12px; color: var(--text-2); margin-top: 4px; }
 
 .tabs {
@@ -151,7 +161,23 @@ function medal(r) {
   width: 48px; height: 48px;
   margin: 0 auto 6px;
   border-radius: 50%;
-  background: var(--grad-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-weight: 700;
+  font-size: 18px;
+  letter-spacing: -.02em;
+  position: relative;
+  overflow: hidden;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .28), 0 4px 12px rgba(60, 44, 30, .22);
+}
+.pd-avatar::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 30% 22%, rgba(255, 255, 255, .35), transparent 55%);
+  pointer-events: none;
 }
 .pd-name { font-size: 12px; font-weight: 700; margin-bottom: 2px; }
 .pd-score {
@@ -196,6 +222,17 @@ function medal(r) {
   color: #fff;
   font-weight: 700;
   font-size: 14px;
+  letter-spacing: -.02em;
+  position: relative;
+  overflow: hidden;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .25), 0 2px 8px rgba(60, 44, 30, .18);
+}
+.rank-item .avatar::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 30% 22%, rgba(255, 255, 255, .32), transparent 55%);
+  pointer-events: none;
 }
 .info { flex: 1; min-width: 0; }
 .n-row { display: flex; align-items: center; gap: 6px; }

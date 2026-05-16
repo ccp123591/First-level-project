@@ -265,7 +265,7 @@ onBeforeUnmount(() => {
         <div class="brand-logo-ico">
           <svg viewBox="0 0 32 32" fill="none">
             <defs><linearGradient id="trlg" x1="4" y1="4" x2="28" y2="28">
-              <stop stop-color="#00F0FF"/><stop offset="1" stop-color="#7C6AFF"/>
+              <stop stop-color="#d97757"/><stop offset="1" stop-color="#c96442"/>
             </linearGradient></defs>
             <circle cx="16" cy="10" r="2.5" stroke="url(#trlg)" stroke-width="1.8"/>
             <path d="M12 22l2-7 2 3 2-3 2 7" stroke="url(#trlg)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -456,7 +456,7 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: center;
   gap: 10px;
-  background: radial-gradient(ellipse at center, rgba(0, 240, 255, .04) 0%, transparent 70%);
+  background: radial-gradient(ellipse at center, rgba(217, 119, 87, .04) 0%, transparent 70%);
   z-index: 3;
 }
 .pulse-icon { position: relative; width: 72px; height: 72px; display: flex; align-items: center; justify-content: center; }
@@ -464,7 +464,7 @@ onBeforeUnmount(() => {
 .pulse-ring {
   position: absolute; inset: 0;
   border-radius: 50%;
-  border: 1px solid rgba(0, 240, 255, .2);
+  border: 1px solid rgba(217, 119, 87, .2);
   animation: pulseRing 3s ease-out infinite;
 }
 .pulse-ring.delay { animation-delay: 1.5s; }
@@ -515,7 +515,7 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  box-shadow: 0 8px 24px rgba(0, 240, 255, .3);
+  box-shadow: 0 8px 24px rgba(217, 119, 87, .3);
   position: relative;
   overflow: hidden;
   transition: transform var(--transition);

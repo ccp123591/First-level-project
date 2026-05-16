@@ -52,7 +52,7 @@ function close() {
               <path d="M15 24l6 6 12-12" stroke="url(#rgl)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
               <defs>
                 <linearGradient id="rgl" x1="2" y1="2" x2="46" y2="46">
-                  <stop stop-color="#00F0FF"/><stop offset="1" stop-color="#00E5A0"/>
+                  <stop stop-color="#d97757"/><stop offset="1" stop-color="#e8b778"/>
                 </linearGradient>
               </defs>
             </svg>

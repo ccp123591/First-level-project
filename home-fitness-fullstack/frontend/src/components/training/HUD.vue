@@ -63,10 +63,10 @@ defineProps({
   font-weight: 700;
   color: #fff;
 }
-.ring-cyan   { border-color: rgba(0, 240, 255, .45); }
-.ring-purple { border-color: rgba(124, 106, 255, .45); }
-.ring-green  { border-color: rgba(0, 229, 138, .45); }
-.ring-orange { border-color: rgba(255, 159, 67, .45); }
+.ring-cyan   { border-color: rgba(217, 119, 87, .42); }
+.ring-purple { border-color: rgba(106, 155, 204, .38); }
+.ring-green  { border-color: rgba(120, 140, 93, .42); }
+.ring-orange { border-color: rgba(199, 138, 99, .4); }
 
 .hud-item small {
   display: block;

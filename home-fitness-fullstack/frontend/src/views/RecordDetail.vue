@@ -103,7 +103,7 @@ function fmt(s) {
   content: '';
   position: absolute;
   inset: 0;
-  background: radial-gradient(ellipse at top, rgba(0, 240, 255, .08), transparent 70%);
+  background: radial-gradient(ellipse at top, rgba(217, 119, 87, .08), transparent 70%);
 }
 .action-badge {
   display: inline-block;

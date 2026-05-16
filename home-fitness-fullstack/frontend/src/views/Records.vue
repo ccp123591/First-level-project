@@ -153,7 +153,7 @@ onMounted(load);
 
 <style scoped>
 .page-head { margin-bottom: 16px; }
-.page-head h2 { font-size: 26px; font-weight: 800; background: var(--grad-primary); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+.page-head h2 { font-family: var(--font-heading); font-size: 28px; font-weight: 700; color: var(--text); letter-spacing: -.04em; }
 .page-head .sub { font-size: 12px; color: var(--text-2); margin-top: 4px; }
 
 .weekly-card {

@@ -43,7 +43,7 @@ function go(n) {
       <div class="logo-box">
         <svg viewBox="0 0 32 32" fill="none">
           <defs><linearGradient id="sidelg" x1="4" y1="4" x2="28" y2="28">
-            <stop stop-color="#00F0FF"/><stop offset="1" stop-color="#7C6AFF"/>
+            <stop stop-color="#d97757"/><stop offset="1" stop-color="#c96442"/>
           </linearGradient></defs>
           <circle cx="16" cy="10" r="2.5" stroke="url(#sidelg)" stroke-width="1.8"/>
           <path d="M12 22l2-7 2 3 2-3 2 7" stroke="url(#sidelg)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -82,7 +82,18 @@ function go(n) {
 
     <div class="side-foot">
       <div class="user-mini">
-        <div class="avatar-dot" :style="{ background: auth.avatar ? `url(${auth.avatar}) center/cover` : 'var(--grad-primary)' }"></div>
+        <div
+          v-if="auth.avatar"
+          class="avatar-dot"
+          :style="{ background: `url(${auth.avatar}) center/cover` }"
+        ></div>
+        <div v-else-if="!auth.isLogin" class="avatar-dot guest">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="9" r="3.2"/>
+            <path d="M5 20v-.5a5 5 0 0 1 5-5h4a5 5 0 0 1 5 5v.5"/>
+          </svg>
+        </div>
+        <div v-else class="avatar-dot initial">{{ (auth.displayName || '?')[0] }}</div>
         <div class="user-meta">
           <div class="name">{{ auth.displayName }}</div>
           <div class="role">{{ auth.isAdmin ? '管理员' : (auth.isLogin ? '已登录' : '游客') }}</div>
@@ -108,28 +119,30 @@ function go(n) {
   display: flex; align-items: center; justify-content: center;
 }
 .logo-box svg { width: 24px; height: 24px; }
-.brand-title { font-size: 18px; font-weight: 800; letter-spacing: -.3px; }
-.brand-sub { font-size: 11px; color: var(--text-3); letter-spacing: .06em; }
+.brand-title { font-family: var(--font-heading); font-size: 18px; font-weight: 700; letter-spacing: -.03em; }
+.brand-sub { font-family: var(--font-ui); font-size: 11px; color: var(--text-3); letter-spacing: .08em; text-transform: uppercase; }
 
 .side-list { display: flex; flex-direction: column; gap: 2px; flex: 1; }
 .side-item {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 10px 14px;
+  padding: 11px 14px;
   border-radius: 12px;
   color: var(--text-2);
-  font-size: 14px;
-  font-weight: 500;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 600;
   transition: all var(--transition);
   text-align: left;
 }
 .side-item:hover { background: var(--bg-card-2); color: var(--text); }
 .side-item.active {
-  background: var(--cyan-dim);
-  color: var(--cyan);
+  background: linear-gradient(135deg, rgba(217, 119, 87, .10), rgba(217, 119, 87, .04));
+  color: var(--text);
+  box-shadow: inset 0 0 0 1px rgba(217, 119, 87, .22);
 }
-.side-item.active .ico { filter: drop-shadow(0 0 8px var(--cyan)); }
+.side-item.active .ico { color: var(--cyan); }
 .ico { width: 20px; height: 20px; flex-shrink: 0; }
 
 .side-foot {
@@ -147,9 +160,28 @@ function go(n) {
 .avatar-dot {
   width: 36px; height: 36px;
   border-radius: 50%;
-  background: var(--grad-primary);
   flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  color: var(--text-2);
+  position: relative;
+  overflow: hidden;
 }
-.user-meta .name { font-size: 13px; font-weight: 600; }
-.user-meta .role { font-size: 11px; color: var(--text-3); }
+.avatar-dot::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 30% 25%, rgba(217, 119, 87, .18), transparent 60%);
+  pointer-events: none;
+}
+.avatar-dot.guest svg { width: 20px; height: 20px; position: relative; z-index: 1; }
+.avatar-dot.initial {
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: -.02em;
+}
+.user-meta .name { font-family: var(--font-ui); font-size: 13px; font-weight: 600; }
+.user-meta .role { font-family: var(--font-ui); font-size: 11px; color: var(--text-3); letter-spacing: .04em; text-transform: uppercase; }
 </style>

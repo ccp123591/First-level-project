@@ -28,7 +28,7 @@ function toLogin() { router.push('/login'); }
 </template>
 
 <style scoped>
-.page-title { font-size: 18px; font-weight: 700; letter-spacing: -.2px; }
+.page-title { font-family: var(--font-heading); font-size: 18px; font-weight: 600; letter-spacing: -.03em; }
 .top-actions {
   margin-left: auto;
   display: flex;
@@ -49,8 +49,9 @@ function toLogin() { router.push('/login'); }
 .login-btn {
   padding: 8px 18px;
   border-radius: 10px;
-  background: var(--grad-primary);
-  color: #fff;
+  background: var(--text);
+  color: var(--bg);
+  font-family: var(--font-ui);
   font-weight: 600;
   font-size: 13px;
   transition: transform var(--transition);
@@ -61,5 +62,6 @@ function toLogin() { router.push('/login'); }
   border-radius: 50%;
   background: var(--grad-primary);
   border: 2px solid var(--border);
+  box-shadow: 0 0 0 3px rgba(217, 119, 87, .08);
 }
 </style>

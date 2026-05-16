@@ -51,7 +51,7 @@ defineExpose({ run });
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-  filter: drop-shadow(0 0 40px rgba(0, 240, 255, .4));
+  filter: drop-shadow(0 0 40px rgba(217, 119, 87, .4));
   animation: countdownPop .8s ease;
 }
 .fade-enter-active, .fade-leave-active { transition: opacity .2s; }

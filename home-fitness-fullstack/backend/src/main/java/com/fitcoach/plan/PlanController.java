@@ -73,7 +73,7 @@ public class PlanController {
                 .title(str(body.get("title"), "未命名计划"))
                 .description(str(body.get("description"), ""))
                 .level(str(body.get("level"), "NEWBIE"))
-                .cover(str(body.get("cover"), "#7C6AFF"))
+                .cover(str(body.get("cover"), "#c96442"))
                 .days(intVal(body.get("days"), 7))
                 .itemsJson(str(body.get("itemsJson"), "[]"))
                 .official(false)

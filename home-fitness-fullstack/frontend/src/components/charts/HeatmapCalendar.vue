@@ -121,9 +121,9 @@ function level(v) {
 }
 .cell:hover { transform: scale(1.3); }
 .cell.future { opacity: .3; }
-.cell.lv-1 { background: rgba(0, 240, 255, .25); }
-.cell.lv-2 { background: rgba(0, 240, 255, .5);  }
-.cell.lv-3 { background: rgba(0, 240, 255, .75); }
+.cell.lv-1 { background: rgba(217, 119, 87, .25); }
+.cell.lv-2 { background: rgba(217, 119, 87, .5);  }
+.cell.lv-3 { background: rgba(217, 119, 87, .75); }
 .cell.lv-4 { background: var(--cyan); box-shadow: 0 0 8px var(--cyan); }
 
 .legend {

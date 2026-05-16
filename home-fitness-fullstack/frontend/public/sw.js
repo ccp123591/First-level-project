@@ -1,7 +1,7 @@
 /* FitCoach Service Worker v3.0
  * Offline-first with network fallback, CDN cache for MediaPipe
  */
-const VERSION = 'fitcoach-v3-0-0';
+const VERSION = 'fitcoach-v3-0-1';
 const APP_SHELL = [
   '/',
   '/index.html',

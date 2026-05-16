@@ -4,8 +4,8 @@ import { ref } from 'vue';
 const tab = ref('official');
 
 const officialPlans = [
-  { id: 1, title: '新手入门 7 天', desc: '零基础友好，每天 15 分钟', cover: '#00F0FF', level: '新手', days: 7 },
-  { id: 2, title: '核心强化 14 天', desc: '针对核心力量的系统训练', cover: '#7C6AFF', level: '进阶', days: 14 },
+  { id: 1, title: '新手入门 7 天', desc: '零基础友好，每天 15 分钟', cover: '#d97757', level: '新手', days: 7 },
+  { id: 2, title: '核心强化 14 天', desc: '针对核心力量的系统训练', cover: '#c96442', level: '进阶', days: 14 },
   { id: 3, title: '30 天俯卧撑挑战', desc: '从 10 个到 100 个的进阶', cover: '#FF9F43', level: '进阶', days: 30 },
   { id: 4, title: '柔韧性提升', desc: '每天 20 分钟拉伸', cover: '#00E58A', level: '新手', days: 10 }
 ];
@@ -71,7 +71,7 @@ const myPlans = [
 
 <style scoped>
 .page-head { margin-bottom: 16px; }
-.page-head h2 { font-size: 26px; font-weight: 800; background: var(--grad-primary); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+.page-head h2 { font-family: var(--font-heading); font-size: 28px; font-weight: 700; color: var(--text); letter-spacing: -.04em; }
 .page-head .sub { font-size: 12px; color: var(--text-2); margin-top: 4px; }
 
 .tabs {

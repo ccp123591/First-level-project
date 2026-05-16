@@ -53,8 +53,9 @@ function go(tab) {
   justify-content: center;
   gap: 3px;
   color: var(--text-3);
+  font-family: var(--font-ui);
   font-size: 10px;
-  font-weight: 500;
+  font-weight: 600;
   transition: color var(--transition);
   position: relative;
 }
@@ -63,7 +64,7 @@ function go(tab) {
   display: flex; align-items: center; justify-content: center;
 }
 .tab-icon svg { width: 22px; height: 22px; }
-.tab-btn.active { color: var(--cyan); }
+.tab-btn.active { color: var(--text); }
 .tab-btn.active::before {
   content: '';
   position: absolute;
@@ -72,7 +73,6 @@ function go(tab) {
   width: 24px; height: 2px;
   border-radius: 0 0 2px 2px;
   background: var(--cyan);
-  box-shadow: 0 0 8px var(--cyan);
 }
 .tab-btn:active { transform: scale(.92); }
 </style>

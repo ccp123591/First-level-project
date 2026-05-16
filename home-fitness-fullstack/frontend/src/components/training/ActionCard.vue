@@ -71,7 +71,7 @@ defineEmits(['select']);
   flex-shrink: 0;
 }
 .icon svg { width: 20px; height: 20px; }
-.action-card.selected .icon { color: var(--cyan); background: rgba(0, 240, 255, .08); }
+.action-card.selected .icon { color: var(--cyan); background: rgba(217, 119, 87, .08); }
 
 .meta { flex: 1; min-width: 0; }
 .name { font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -81,7 +81,7 @@ defineEmits(['select']);
   width: 20px; height: 20px;
   border-radius: 50%;
   background: var(--cyan);
-  color: #0a0a0f;
+  color: #fff;
   display: flex; align-items: center; justify-content: center;
   flex-shrink: 0;
   animation: scaleIn .3s;

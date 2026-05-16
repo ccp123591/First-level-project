@@ -95,8 +95,8 @@ watch(() => props.session, (v) => {
   margin: 16px 0;
   padding: 14px;
   border-radius: 16px;
-  background: linear-gradient(135deg, rgba(0, 240, 255, .06), rgba(124, 106, 255, .06));
-  border: 1px solid rgba(0, 240, 255, .15);
+  background: linear-gradient(135deg, rgba(217, 119, 87, .06), rgba(201, 100, 66, .06));
+  border: 1px solid rgba(217, 119, 87, .15);
 }
 .coach-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
 .avatar {

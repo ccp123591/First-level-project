@@ -98,7 +98,7 @@ function sendSms() {
         <div class="logo-big">
           <svg viewBox="0 0 32 32" fill="none">
             <defs><linearGradient id="llg" x1="4" y1="4" x2="28" y2="28">
-              <stop stop-color="#00F0FF"/><stop offset="1" stop-color="#7C6AFF"/>
+              <stop stop-color="#d97757"/><stop offset="1" stop-color="#c96442"/>
             </linearGradient></defs>
             <circle cx="16" cy="10" r="2.5" stroke="url(#llg)" stroke-width="1.8"/>
             <path d="M12 22l2-7 2 3 2-3 2 7" stroke="url(#llg)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -228,8 +228,8 @@ function sendSms() {
   pointer-events: none;
   z-index: 0;
 }
-.glow-1 { top: -100px; left: -100px; width: 300px; height: 300px; background: #00F0FF; }
-.glow-2 { bottom: -100px; right: -100px; width: 300px; height: 300px; background: #7C6AFF; }
+.glow-1 { top: -100px; left: -100px; width: 300px; height: 300px; background: rgba(217, 119, 87, .9); }
+.glow-2 { bottom: -100px; right: -100px; width: 300px; height: 300px; background: rgba(106, 155, 204, .72); }
 
 .login-wrap {
   position: relative;
@@ -248,8 +248,8 @@ function sendSms() {
 .brand-area { text-align: center; margin-bottom: 24px; }
 .logo-big { width: 56px; height: 56px; margin: 0 auto 12px; animation: floatY 3s ease-in-out infinite; }
 .logo-big svg { width: 100%; height: 100%; }
-.title { font-size: 28px; font-weight: 800; letter-spacing: -.5px; margin-bottom: 4px; }
-.subtitle { font-size: 12px; color: var(--text-3); }
+.title { font-family: var(--font-heading); font-size: 30px; font-weight: 700; letter-spacing: -.05em; margin-bottom: 6px; }
+.subtitle { font-family: var(--font-ui); font-size: 12px; color: var(--text-3); }
 
 .auth-tabs {
   display: flex;
@@ -337,7 +337,7 @@ function sendSms() {
   font-size: 15px;
   font-weight: 700;
   transition: all var(--transition);
-  box-shadow: 0 6px 20px rgba(0, 240, 255, .3);
+  box-shadow: 0 6px 20px rgba(217, 119, 87, .3);
   display: flex;
   align-items: center;
   justify-content: center;

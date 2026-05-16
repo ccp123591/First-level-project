@@ -54,8 +54,8 @@ function draw() {
     const h = ((d.reps || 0) / maxReps) * chartH;
     const y = padding.top + chartH - h;
     const g = ctx.createLinearGradient(x, y, x, padding.top + chartH);
-    g.addColorStop(0, 'rgba(0, 240, 255, .75)');
-    g.addColorStop(1, 'rgba(0, 240, 255, .1)');
+    g.addColorStop(0, 'rgba(217, 119, 87, .75)');
+    g.addColorStop(1, 'rgba(217, 119, 87, .1)');
     ctx.fillStyle = g;
     const r = Math.min(barWidth / 2, 4);
     ctx.beginPath();
@@ -74,7 +74,7 @@ function draw() {
   });
 
   // Score line
-  ctx.strokeStyle = '#7C6AFF';
+  ctx.strokeStyle = '#c96442';
   ctx.lineWidth = 2;
   ctx.lineJoin = 'round';
   ctx.lineCap = 'round';
@@ -89,21 +89,21 @@ function draw() {
   data.forEach((d, i) => {
     const x = padding.left + gap * i + gap / 2;
     const y = padding.top + chartH * (1 - (d.score || 0) / 100);
-    ctx.fillStyle = '#7C6AFF';
+    ctx.fillStyle = '#c96442';
     ctx.beginPath(); ctx.arc(x, y, 3.5, 0, 2 * Math.PI); ctx.fill();
     ctx.fillStyle = 'var(--bg-card)';
-    ctx.fillStyle = getComputedStyle(canvas).getPropertyValue('background-color') || '#141419';
+    ctx.fillStyle = getComputedStyle(canvas).getPropertyValue('background-color') || '#24221e';
     ctx.beginPath(); ctx.arc(x, y, 1.6, 0, 2 * Math.PI); ctx.fill();
   });
 
   // Legend
   ctx.textAlign = 'left';
-  ctx.fillStyle = 'rgba(0, 240, 255, .8)';
+  ctx.fillStyle = 'rgba(217, 119, 87, .8)';
   ctx.beginPath(); ctx.arc(padding.left + 6, 14, 4, 0, 2 * Math.PI); ctx.fill();
   ctx.fillStyle = 'rgba(255, 255, 255, .38)';
   ctx.font = '500 11px Inter, sans-serif';
   ctx.fillText('次数', padding.left + 16, 18);
-  ctx.fillStyle = '#7C6AFF';
+  ctx.fillStyle = '#c96442';
   ctx.beginPath(); ctx.arc(padding.left + 60, 14, 4, 0, 2 * Math.PI); ctx.fill();
   ctx.fillStyle = 'rgba(255, 255, 255, .38)';
   ctx.fillText('评分', padding.left + 70, 18);

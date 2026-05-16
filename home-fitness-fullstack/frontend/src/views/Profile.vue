@@ -46,7 +46,7 @@ onMounted(loadStats);
   <div class="page-wrap profile-page">
     <!-- 头部 Hero -->
     <div class="profile-hero">
-      <div class="avatar-big" :style="{ background: auth.avatar ? `url(${auth.avatar}) center/cover` : 'var(--grad-primary)' }">
+      <div class="avatar-big" :style="auth.avatar ? { background: `url(${auth.avatar}) center/cover` } : null">
         <span v-if="!auth.avatar">{{ auth.displayName?.[0]?.toUpperCase() }}</span>
       </div>
       <div class="profile-name">{{ auth.displayName }}</div>
@@ -128,22 +128,33 @@ onMounted(loadStats);
   content: '';
   position: absolute;
   inset: 0;
-  background: radial-gradient(ellipse at top, rgba(124, 106, 255, .08), transparent 70%);
+  background: radial-gradient(ellipse at top, rgba(201, 100, 66, .08), transparent 70%);
   pointer-events: none;
 }
 .avatar-big {
   width: 72px; height: 72px;
   border-radius: 50%;
   margin: 0 auto 12px;
-  background: var(--grad-primary);
+  background: linear-gradient(135deg, hsl(22, 52%, 62%), hsl(12, 48%, 46%));
   display: flex;
   align-items: center;
   justify-content: center;
   color: #fff;
   font-size: 28px;
   font-weight: 800;
-  box-shadow: 0 8px 24px rgba(0, 240, 255, .3);
+  letter-spacing: -.02em;
+  position: relative;
+  overflow: hidden;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .3), 0 8px 24px rgba(60, 44, 30, .28);
 }
+.avatar-big::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 30% 22%, rgba(255, 255, 255, .35), transparent 55%);
+  pointer-events: none;
+}
+.avatar-big > * { position: relative; z-index: 1; }
 .profile-name { font-size: 18px; font-weight: 800; margin-bottom: 6px; }
 .profile-role { margin-bottom: 20px; }
 .role-tag {
