@@ -93,9 +93,8 @@ public class ChallengeService {
         var rows = participantRepo.findByChallengeIdOrderByProgressRepsDesc(challengeId,
                 PageRequest.of(0, safeLimit));
         Map<Long, User> userById = new HashMap<>();
-        for (var p : rows) {
-            userById.computeIfAbsent(p.getUserId(), uid -> userRepo.findById(uid).orElse(null));
-        }
+        userRepo.findAllById(rows.stream().map(p -> p.getUserId()).toList())
+                .forEach(u -> userById.put(u.getId(), u));
         List<ChallengeRankRow> out = new ArrayList<>();
         int r = 1;
         for (var p : rows) {

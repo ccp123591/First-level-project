@@ -133,8 +133,9 @@ class ChallengeServiceTest {
         var p2 = ChallengeParticipant.builder().userId(20L).progressReps(50).completed(false).build();
         given(participantRepo.findByChallengeIdOrderByProgressRepsDesc(eq(1L), any()))
                 .willReturn(new PageImpl<>(List.of(p1, p2), PageRequest.of(0, 20), 2));
-        given(userRepo.findById(10L)).willReturn(Optional.of(User.builder().id(10L).nickname("Alice").build()));
-        given(userRepo.findById(20L)).willReturn(Optional.of(User.builder().id(20L).nickname("Bob").build()));
+        given(userRepo.findAllById(any())).willReturn(List.of(
+                User.builder().id(10L).nickname("Alice").build(),
+                User.builder().id(20L).nickname("Bob").build()));
 
         var rows = service.rank(1L, 20);
 

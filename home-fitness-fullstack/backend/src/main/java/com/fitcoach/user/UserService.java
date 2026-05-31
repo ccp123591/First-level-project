@@ -133,27 +133,25 @@ public class UserService {
     }
 
     public List<Map<String, Object>> followers(Long userId) {
-        return followRepo.findByFollowingId(userId).stream()
-                .map(f -> userBrief(f.getFollowerId()))
-                .filter(Objects::nonNull)
-                .collect(Collectors.toList());
+        return briefByIds(followRepo.findByFollowingId(userId).stream()
+                .map(UserFollow::getFollowerId).toList());
     }
 
     public List<Map<String, Object>> followings(Long userId) {
-        return followRepo.findByFollowerId(userId).stream()
-                .map(f -> userBrief(f.getFollowingId()))
-                .filter(Objects::nonNull)
-                .collect(Collectors.toList());
+        return briefByIds(followRepo.findByFollowerId(userId).stream()
+                .map(UserFollow::getFollowingId).toList());
     }
 
-    private Map<String, Object> userBrief(Long id) {
-        return userRepo.findById(id).map(u -> {
+    private List<Map<String, Object>> briefByIds(List<Long> ids) {
+        Map<Long, User> users = new HashMap<>();
+        userRepo.findAllById(ids).forEach(u -> users.put(u.getId(), u));
+        return ids.stream().map(users::get).filter(Objects::nonNull).map(u -> {
             Map<String, Object> m = new HashMap<>();
             m.put("id", u.getId());
             m.put("nickname", u.getNickname());
             m.put("avatar", u.getAvatar() == null ? "" : u.getAvatar());
             return m;
-        }).orElse(null);
+        }).collect(Collectors.toList());
     }
 
     /* ---------- private ---------- */
