@@ -14,6 +14,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -80,6 +81,84 @@ public class MimoCoachProvider implements AiCoachProvider {
     @Override
     public CoachAiResponse weeklyPlan(CoachContext ctx) {
         return call(CoachPromptTemplates.SYSTEM_WEEKLY_PLAN, ctx);
+    }
+
+    @Override
+    public ChatAiResponse chat(CoachContext ctx, String userMessage, List<ChatTurn> history) {
+        String enrichedSystem = buildChatSystem(ctx);
+        List<Map<String, Object>> messages = new ArrayList<>();
+        messages.add(Map.of("role", "system", "content", enrichedSystem));
+
+        // 截取最近 8 轮（避免过长 + 控制 token）
+        if (history != null && !history.isEmpty()) {
+            int start = Math.max(0, history.size() - 8);
+            for (int i = start; i < history.size(); i++) {
+                ChatTurn t = history.get(i);
+                if (t == null || t.getRole() == null || t.getContent() == null) continue;
+                String role = "assistant".equalsIgnoreCase(t.getRole()) ? "assistant" : "user";
+                messages.add(Map.of("role", role, "content", t.getContent()));
+            }
+        }
+        messages.add(Map.of("role", "user", "content", userMessage == null ? "" : userMessage));
+
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("model", model);
+        body.put("messages", messages);
+        body.put("max_tokens", 400);
+        body.put("temperature", 0.85);    // 比反馈高一点 → 更自然口语
+        // 注意：chat 不要 response_format json_object，要自然语言
+
+        String url = baseUrl.replaceAll("/+$", "") + "/chat/completions";
+        try {
+            JsonNode root = restClient.post()
+                    .uri(url)
+                    .headers(this::applyAuth)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(body)
+                    .retrieve()
+                    .body(JsonNode.class);
+            if (root == null) {
+                throw new BusinessException(503, "AI coach unavailable");
+            }
+            int tokens = root.path("usage").path("total_tokens").asInt(0);
+            String content = root.path("choices").path(0).path("message").path("content").asText("");
+            return ChatAiResponse.builder()
+                    .reply(content == null ? "" : content.trim())
+                    .provider(name())
+                    .tokensUsed(tokens)
+                    .build();
+        } catch (RestClientException e) {
+            log.warn("[MiMo chat] HTTP error: {}", e.getMessage());
+            throw new BusinessException(503, "AI coach unavailable");
+        }
+    }
+
+    private String buildChatSystem(CoachContext ctx) {
+        StringBuilder sb = new StringBuilder(CoachPromptTemplates.SYSTEM_CHAT);
+        sb.append("\n\n—— 当前用户上下文 ——\n");
+        if (ctx.getNickname() != null && !ctx.getNickname().isBlank()) {
+            sb.append("昵称：").append(ctx.getNickname()).append("\n");
+        }
+        if (ctx.getUserProfileSummary() != null && !ctx.getUserProfileSummary().isBlank()) {
+            sb.append("画像摘要：").append(ctx.getUserProfileSummary()).append("\n");
+        }
+        if (ctx.getRecentDominantEmotion() != null) {
+            sb.append("近期情感：").append(ctx.getRecentDominantEmotion());
+            if (ctx.getRecentEmotionScore() != null) {
+                sb.append("（分数 ").append(String.format("%.2f", ctx.getRecentEmotionScore())).append("）");
+            }
+            sb.append("\n");
+        }
+        if (ctx.getRecentAvgScore() != null && ctx.getRecentAvgScore() > 0) {
+            long total = ctx.getRecentTotalReps() == null ? 0L : ctx.getRecentTotalReps();
+            sb.append("近 7 次训练：平均分 ").append(ctx.getRecentAvgScore())
+              .append("，累计 ").append(total).append(" 次\n");
+        }
+        if (ctx.getRelevantHistory() != null && !ctx.getRelevantHistory().isBlank()) {
+            sb.append("\n—— 相关历史记忆（仅在自然的时候引用，绝不要编造）——\n");
+            sb.append(ctx.getRelevantHistory()).append("\n");
+        }
+        return sb.toString();
     }
 
     private CoachAiResponse call(String systemPrompt, CoachContext ctx) {

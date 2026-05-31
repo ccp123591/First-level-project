@@ -5,6 +5,8 @@ import com.fitcoach.emotion.EmotionService;
 import com.fitcoach.emotion.EmotionSummary;
 import com.fitcoach.exception.BusinessException;
 import com.fitcoach.infra.ai.AiCoachProvider;
+import com.fitcoach.infra.ai.ChatAiResponse;
+import com.fitcoach.infra.ai.ChatTurn;
 import com.fitcoach.infra.ai.CoachAiResponse;
 import com.fitcoach.infra.ai.CoachContext;
 import com.fitcoach.infra.memory.VectorMemoryService;
@@ -20,6 +22,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -80,6 +83,125 @@ public class CoachService {
                 PageRequest.of(safePage, safeSize));
         List<FeedbackResponse> items = p.getContent().stream().map(this::toResponse).toList();
         return PageResult.of(items, p.getTotalElements(), safePage, safeSize);
+    }
+
+    /**
+     * 陪伴聊天：把当前消息当 RAG query 召回相关记忆，注入 ctx 后调 provider，
+     * 然后把"用户说 / 我回了"两条都写回记忆库 — 下次再聊就能被唤醒。
+     */
+    public ChatResponse chat(Long userId, String message, List<ChatTurn> history) {
+        if (message == null || message.isBlank()) {
+            throw new BusinessException(400, "消息不能为空");
+        }
+        if (message.length() > 1000) {
+            throw new BusinessException(400, "单条消息过长，请控制在 1000 字以内");
+        }
+
+        CoachContext ctx = buildContext(userId, null);
+
+        // 用「当前消息」作为 RAG query — 比 buildContext 默认 query 更精准
+        String recalled = "";
+        VectorMemoryService vm = memoryServiceProvider.getIfAvailable();
+        if (vm != null && vm.isEnabled()) {
+            try {
+                recalled = vm.recall(userId, message, 5);
+                if (recalled != null && !recalled.isBlank()) {
+                    ctx.setRelevantHistory(recalled);
+                }
+            } catch (Exception e) {
+                log.warn("[chat] recall 失败: {}", e.getMessage());
+            }
+        }
+
+        ChatAiResponse ai;
+        try {
+            ai = provider.chat(ctx, message, history);
+        } catch (BusinessException be) {
+            throw be;
+        } catch (Exception e) {
+            log.warn("[chat] provider 失败: {}", e.getMessage());
+            throw new BusinessException(503, "AI 教练暂时不可用，请稍后再试");
+        }
+
+        // 双向落库：用户问题 + AI 回答都进向量记忆，下次能唤起
+        if (vm != null && vm.isEnabled()) {
+            try {
+                vm.addChatMemory(userId, "用户说：" + message);
+                if (ai.getReply() != null && !ai.getReply().isBlank()) {
+                    vm.addChatMemory(userId, "小柯回了：" + ai.getReply());
+                }
+            } catch (Exception ignored) {
+                /* 记忆写入失败不影响回复 */
+            }
+        }
+
+        return ChatResponse.builder()
+                .reply(ai.getReply())
+                .provider(ai.getProvider())
+                .tokensUsed(ai.getTokensUsed())
+                .recalled(splitRecall(recalled))
+                .build();
+    }
+
+    private static List<String> splitRecall(String recalled) {
+        if (recalled == null || recalled.isBlank()) return List.of();
+        return Arrays.stream(recalled.split("\n"))
+                .map(s -> s.replaceFirst("^-\\s*\\[[^\\]]*\\]\\s*", "").replaceFirst("^-\\s*", "").trim())
+                .filter(s -> !s.isBlank())
+                .toList();
+    }
+
+    /**
+     * 叙旧模式：按时间近拉取最近的聊天记忆，让 AI 像老朋友一样把它们串起来温柔讲出来。
+     * 不绑 message — 是用户主动点"叙旧"触发的。
+     */
+    public ChatResponse reminisce(Long userId) {
+        VectorMemoryService vm = memoryServiceProvider.getIfAvailable();
+        String recent = "";
+        if (vm != null && vm.isEnabled()) {
+            try {
+                recent = vm.recentChat(userId, 12);
+            } catch (Exception e) {
+                log.warn("[reminisce] recentChat 失败: {}", e.getMessage());
+            }
+        }
+
+        if (recent == null || recent.isBlank()) {
+            return ChatResponse.builder()
+                    .reply("我们最近还没怎么聊过呢，多说几句话给我，下回就能跟你叙旧啦。")
+                    .provider("mock")
+                    .tokensUsed(0)
+                    .recalled(List.of())
+                    .build();
+        }
+
+        CoachContext ctx = buildContext(userId, null);
+        ctx.setRelevantHistory(recent);
+
+        // 用半结构化的"叙旧"用户消息触发 — 比纯 system override 更通用，Mock 也吃这个 keyword
+        String userMsg = "（叙旧）跟我把我们最近聊过的事儿温柔地串起来讲一下吧，像老朋友一样自然。";
+
+        ChatAiResponse ai;
+        try {
+            ai = provider.chat(ctx, userMsg, List.of());
+        } catch (BusinessException be) {
+            throw be;
+        } catch (Exception e) {
+            log.warn("[reminisce] provider 失败: {}", e.getMessage());
+            throw new BusinessException(503, "AI 教练暂时不可用，请稍后再试");
+        }
+
+        // 把这次叙旧自己也存进记忆 — 下次能引用"上次叙旧时我说过..."
+        if (vm != null && vm.isEnabled() && ai.getReply() != null && !ai.getReply().isBlank()) {
+            try { vm.addChatMemory(userId, "小柯叙旧：" + ai.getReply()); } catch (Exception ignored) {}
+        }
+
+        return ChatResponse.builder()
+                .reply(ai.getReply())
+                .provider(ai.getProvider())
+                .tokensUsed(ai.getTokensUsed())
+                .recalled(splitRecall(recent))
+                .build();
     }
 
     // —— helpers ——

@@ -2,20 +2,25 @@ package com.fitcoach.coach;
 
 import com.fitcoach.common.ApiResult;
 import com.fitcoach.common.PageResult;
+import com.fitcoach.infra.ai.ChatTurn;
 import com.fitcoach.security.SecurityUtil;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 /**
  * AI 教练 Controller — 全部委托给 CoachService。
  */
-@Tag(name = "04. AI 教练", description = "AI 驱动的训练点评、建议与计划")
+@Tag(name = "04. AI 教练", description = "AI 驱动的训练点评、建议、计划与陪伴聊天")
 @SecurityRequirement(name = "bearerAuth")
 @RestController
 @RequestMapping("/api/coach")
@@ -54,9 +59,34 @@ public class CoachController {
         return ApiResult.ok(coachService.history(userId, page, size));
     }
 
+    @Operation(summary = "陪伴聊天 — 多轮 + RAG 记忆唤醒")
+    @PostMapping("/chat")
+    public ApiResult<ChatResponse> chat(@Valid @RequestBody ChatRequest req) {
+        Long userId = SecurityUtil.currentUserId();
+        return ApiResult.ok(coachService.chat(userId, req.getMessage(), req.getHistory()));
+    }
+
+    @Operation(summary = "叙旧 — 按时间近回顾最近的对话")
+    @PostMapping("/reminisce")
+    public ApiResult<ChatResponse> reminisce() {
+        Long userId = SecurityUtil.currentUserId();
+        return ApiResult.ok(coachService.reminisce(userId));
+    }
+
     @Data
     public static class FeedbackRequest {
         @NotNull
         private Long sessionId;
+    }
+
+    @Data
+    public static class ChatRequest {
+        @NotBlank
+        @Size(max = 1000, message = "单条消息最长 1000 字")
+        private String message;
+
+        /** 最近若干轮，服务端会再截到 8 轮以内；可为 null */
+        @Size(max = 30, message = "history 最多 30 轮")
+        private List<ChatTurn> history;
     }
 }

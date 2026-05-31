@@ -46,6 +46,17 @@ public class VectorMemoryService {
         }
     }
 
+    /** 陪伴聊天 — 用户消息 / AI 回复 都用这个落库。sourceId 为 null（聊天不绑 session）。 */
+    public void addChatMemory(Long userId, String text) {
+        if (!enabled) return;
+        if (text == null || text.isBlank()) return;
+        try {
+            store.add(userId, "chat", null, text);
+        } catch (Exception e) {
+            log.warn("[memory] addChat 失败 user={} msg={}", userId, e.getMessage());
+        }
+    }
+
     /** 返回 Top-K 相关历史的简短文本拼接（用于注入 prompt）。 */
     public String recall(Long userId, String query, int topK) {
         if (!enabled) return "";
@@ -58,6 +69,30 @@ public class VectorMemoryService {
                     .collect(Collectors.joining("\n"));
         } catch (Exception e) {
             log.warn("[memory] recall 失败: {}", e.getMessage());
+            return "";
+        }
+    }
+
+    /**
+     * 按时间近的「叙旧」拉取 — 拼成可读的最近聊天片段，旧的在上、新的在下。
+     */
+    public String recentChat(Long userId, int limit) {
+        if (!enabled) return "";
+        try {
+            List<MemoryRecord> hits = store.recentByUser(userId, "chat", limit);
+            if (hits.isEmpty()) return "";
+            // 倒过来：最旧的在上、最新的在下，更像"时间线"
+            return hits.stream()
+                    .sorted((a, b) -> {
+                        if (a.getCreatedAt() == null && b.getCreatedAt() == null) return Long.compare(a.getId(), b.getId());
+                        if (a.getCreatedAt() == null) return -1;
+                        if (b.getCreatedAt() == null) return 1;
+                        return a.getCreatedAt().compareTo(b.getCreatedAt());
+                    })
+                    .map(r -> "- " + r.getText())
+                    .collect(Collectors.joining("\n"));
+        } catch (Exception e) {
+            log.warn("[memory] recentChat 失败: {}", e.getMessage());
             return "";
         }
     }

@@ -67,6 +67,15 @@ ai:
     embedding: ${AI_MEMORY_EMBEDDING:mock}      # mock | openai
     max-per-user: 500
     recall-top-k: 3
+  # 语音 TTS — 主 mimo，云不可用时 service 自动 fallback 到 browser（前端 Web Speech API 朗读）
+  tts:
+    provider: ${AI_TTS_PROVIDER:browser}        # mimo | browser
+    mimo:
+      api-key: ${MIMO_TTS_API_KEY:${MIMO_API_KEY:}}
+      base-url: ${MIMO_TTS_BASE_URL:https://api.xiaomimimo.com/v1}
+      model: ${MIMO_TTS_MODEL:mimo-v2-tts}
+      voice: ${MIMO_TTS_VOICE:default_zh}
+      format: ${MIMO_TTS_FORMAT:wav}
 
 # 环境建模 vision-svc
 vision:

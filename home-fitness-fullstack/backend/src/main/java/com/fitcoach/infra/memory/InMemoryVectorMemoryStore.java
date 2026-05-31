@@ -73,6 +73,26 @@ public class InMemoryVectorMemoryStore implements VectorMemoryStore {
     }
 
     @Override
+    public List<MemoryRecord> recentByUser(Long userId, String sourceType, int limit) {
+        List<MemoryRecord> list = byUser.get(userId);
+        if (list == null || list.isEmpty()) return List.of();
+        List<MemoryRecord> snapshot;
+        synchronized (list) { snapshot = new ArrayList<>(list); }
+        if (sourceType != null) {
+            snapshot.removeIf(r -> !sourceType.equals(r.getSourceType()));
+        }
+        // createdAt 可能为 null（极少数旧数据） — 按入库顺序（list 本身已是时间序）也能用
+        snapshot.sort((a, b) -> {
+            if (a.getCreatedAt() == null && b.getCreatedAt() == null) return Long.compare(b.getId(), a.getId());
+            if (a.getCreatedAt() == null) return 1;
+            if (b.getCreatedAt() == null) return -1;
+            return b.getCreatedAt().compareTo(a.getCreatedAt());
+        });
+        int k = Math.max(1, Math.min(limit, snapshot.size()));
+        return snapshot.subList(0, k);
+    }
+
+    @Override
     public void clearForUser(Long userId) {
         byUser.remove(userId);
     }
