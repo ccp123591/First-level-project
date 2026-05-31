@@ -38,8 +38,13 @@ public class SocialController {
         Page<Post> p = postRepo.findByVisibilityOrderByCreatedAtDesc("PUBLIC",
                 PageRequest.of(Math.max(0, page - 1), size));
         Long me = SecurityUtil.currentUserIdOrNull();
-        List<Map<String, Object>> items = p.getContent().stream()
-                .map(post -> toPostMap(post, me))
+        List<Post> posts = p.getContent();
+        Map<Long, User> users = usersByIds(posts.stream().map(Post::getUserId).toList());
+        Set<Long> liked = me == null ? Set.of()
+                : likeRepo.findByUserIdAndPostIdIn(me, posts.stream().map(Post::getId).toList())
+                        .stream().map(PostLike::getPostId).collect(Collectors.toSet());
+        List<Map<String, Object>> items = posts.stream()
+                .map(post -> postMap(post, users.get(post.getUserId()), liked.contains(post.getId())))
                 .collect(Collectors.toList());
         return ApiResult.ok(PageResult.of(items, p.getTotalElements(), page, size));
     }
@@ -60,7 +65,9 @@ public class SocialController {
     @GetMapping("/posts/{id}")
     public ApiResult<Map<String, Object>> detail(@PathVariable Long id) {
         Post p = postRepo.findById(id).orElseThrow(() -> new BusinessException(404, "动态不存在"));
-        return ApiResult.ok(toPostMap(p, SecurityUtil.currentUserIdOrNull()));
+        Long me = SecurityUtil.currentUserIdOrNull();
+        return ApiResult.ok(postMap(p, userRepo.findById(p.getUserId()).orElse(null),
+                me != null && likeRepo.existsByPostIdAndUserId(id, me)));
     }
 
     @Operation(summary = "删除动态")
@@ -125,16 +132,18 @@ public class SocialController {
     @GetMapping("/posts/{id}/comments")
     public ApiResult<List<Map<String, Object>>> comments(@PathVariable Long id) {
         List<PostComment> list = commentRepo.findByPostIdOrderByCreatedAtAsc(id);
+        Map<Long, User> users = usersByIds(list.stream().map(PostComment::getUserId).toList());
         return ApiResult.ok(list.stream().map(c -> {
             Map<String, Object> m = new HashMap<>();
             m.put("id", c.getId());
             m.put("content", c.getContent());
             m.put("createdAt", c.getCreatedAt());
-            userRepo.findById(c.getUserId()).ifPresent(u -> {
+            User u = users.get(c.getUserId());
+            if (u != null) {
                 m.put("userId", u.getId());
                 m.put("nickname", u.getNickname());
                 m.put("avatar", u.getAvatar() == null ? "" : u.getAvatar());
-            });
+            }
             return m;
         }).toList());
     }
@@ -143,7 +152,13 @@ public class SocialController {
 
     /* ---------- helpers ---------- */
 
-    private Map<String, Object> toPostMap(Post p, Long me) {
+    private Map<Long, User> usersByIds(Collection<Long> ids) {
+        Map<Long, User> m = new HashMap<>();
+        userRepo.findAllById(ids).forEach(u -> m.put(u.getId(), u));
+        return m;
+    }
+
+    private Map<String, Object> postMap(Post p, User u, boolean liked) {
         Map<String, Object> m = new HashMap<>();
         m.put("id", p.getId());
         m.put("content", p.getContent());
@@ -152,12 +167,12 @@ public class SocialController {
         m.put("createdAt", p.getCreatedAt());
         m.put("visibility", p.getVisibility());
         m.put("sessionId", p.getSessionId());
-        m.put("liked", me != null && likeRepo.existsByPostIdAndUserId(p.getId(), me));
-        userRepo.findById(p.getUserId()).ifPresent(u -> {
+        m.put("liked", liked);
+        if (u != null) {
             m.put("userId", u.getId());
             m.put("nickname", u.getNickname());
             m.put("avatar", u.getAvatar() == null ? "" : u.getAvatar());
-        });
+        }
         return m;
     }
 }

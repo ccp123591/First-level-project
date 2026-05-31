@@ -87,11 +87,17 @@ public class LeaderboardService {
 
     private List<Map<String, Object>> build(String startDate, Set<Long> scopeUserIds) {
         var rows = sessionRepo.aggregateSince(startDate, PageRequest.of(0, 100));
+        var top = rows.stream()
+                .filter(r -> scopeUserIds == null || scopeUserIds.contains(r.getUserId()))
+                .limit(20)
+                .toList();
+        Map<Long, User> users = new HashMap<>();
+        userRepo.findAllById(top.stream().map(r -> r.getUserId()).toList())
+                .forEach(u -> users.put(u.getId(), u));
         List<Map<String, Object>> all = new ArrayList<>();
         int rank = 1;
-        for (var row : rows) {
-            if (scopeUserIds != null && !scopeUserIds.contains(row.getUserId())) continue;
-            User u = userRepo.findById(row.getUserId()).orElse(null);
+        for (var row : top) {
+            User u = users.get(row.getUserId());
             Map<String, Object> m = new HashMap<>();
             m.put("rank", rank++);
             m.put("userId", row.getUserId());
@@ -100,7 +106,6 @@ public class LeaderboardService {
             m.put("reps", row.getTotalReps());
             m.put("score", row.getAvgScore() == null ? 0 : Math.round(row.getAvgScore()));
             all.add(m);
-            if (all.size() >= 20) break;
         }
         return all;
     }

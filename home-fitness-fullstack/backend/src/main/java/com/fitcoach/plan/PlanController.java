@@ -116,18 +116,22 @@ public class PlanController {
     public ApiResult<List<Map<String, Object>>> mine() {
         Long uid = SecurityUtil.currentUserId();
         List<UserPlan> ups = userPlanRepo.findByUserIdAndStatus(uid, "ACTIVE");
+        Map<Long, Plan> plans = new HashMap<>();
+        planRepo.findAllById(ups.stream().map(UserPlan::getPlanId).toList())
+                .forEach(p -> plans.put(p.getId(), p));
         return ApiResult.ok(ups.stream().map(up -> {
             Map<String, Object> m = new HashMap<>();
             m.put("planId", up.getPlanId());
             m.put("progressDay", up.getProgressDay());
             m.put("status", up.getStatus());
             m.put("adoptedAt", up.getAdoptedAt());
-            planRepo.findById(up.getPlanId()).ifPresent(p -> {
+            Plan p = plans.get(up.getPlanId());
+            if (p != null) {
                 m.put("title", p.getTitle());
                 m.put("days", p.getDays());
                 m.put("cover", p.getCover());
                 m.put("level", p.getLevel());
-            });
+            }
             return m;
         }).collect(Collectors.toList()));
     }
