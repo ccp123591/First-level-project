@@ -11,6 +11,7 @@ import { useVoiceChat } from '@/composables/useVoiceChat';
 import { coachApi } from '@/api/coach';
 import { ttsApi } from '@/api/tts';
 import { useConfigStore } from '@/stores/config';
+import { followupsFor } from '@/modules/followups';
 
 const config = useConfigStore();
 
@@ -19,7 +20,7 @@ const speak = (text) => ttsApi.speak(text);
 
 const {
   state, supported, interim, transcripts, error,
-  start, stop, clearTranscripts
+  start, stop, clearTranscripts, say
 } = useVoiceChat({ chat, speak });
 
 const companionName = computed(() => config.companionName || '小柯');
@@ -41,6 +42,15 @@ const lastAssistant = computed(() => {
 });
 
 const visibleTurns = computed(() => transcripts.value.slice(-4));
+
+// AI 回复后的情境化快捷追问（忙着想/说时不打扰）
+const followups = computed(() => {
+  if (state.value !== 'idle' && state.value !== 'listening') return [];
+  const la = lastAssistant.value;
+  return la ? followupsFor(la.content) : [];
+});
+
+function tapChip(p) { say(p); }
 
 function toggle() {
   if (state.value === 'idle' || state.value === 'error') start();
@@ -168,6 +178,11 @@ watch(() => state.value, (v) => {
           </ul>
         </div>
       </div>
+    </div>
+
+    <!-- ====== 情境化快捷追问（点一下直接发，不必开口） ====== -->
+    <div class="vc-quick" v-if="followups.length">
+      <button v-for="p in followups" :key="p" class="vc-chip" @click="tapChip(p)">{{ p }}</button>
     </div>
 
     <!-- ====== 操作按钮 ====== -->
@@ -400,6 +415,22 @@ watch(() => state.value, (v) => {
 }
 
 /* ============ 操作按钮 ============ */
+.vc-quick {
+  display: flex; flex-wrap: wrap; gap: 6px;
+  justify-content: center;
+  margin-top: 2px;
+}
+.vc-chip {
+  font-size: 11px;
+  padding: 5px 11px;
+  border-radius: 999px;
+  background: var(--bg-card-2);
+  color: var(--text-2);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: all .15s;
+}
+.vc-chip:hover { color: var(--cyan); border-color: var(--cyan); background: var(--cyan-dim); }
 .ctrl {
   display: flex;
   justify-content: center;

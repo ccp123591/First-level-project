@@ -141,14 +141,18 @@ export function useVoiceChat({ chat, speak }) {
     }
   }
 
-  /** 一句话说完：交给 chat → TTS → 续听 */
+  /** 一句话说完：取出转写文本交给 processUtterance。 */
   async function flushUtterance() {
-    if (processing) return;
     const text = (finalBuf + interim.value.slice(finalBuf.length)).trim();
-    if (!text) return;
-    processing = true;
     finalBuf = '';
     interim.value = '';
+    await processUtterance(text);
+  }
+
+  /** 把一段用户发言（语音转写 或 点选追问）走完 chat → TTS → 续听。 */
+  async function processUtterance(text) {
+    if (processing || !text) return;
+    processing = true;
 
     transcripts.value.push({ role: 'user', content: text, time: Date.now() });
 
@@ -192,6 +196,18 @@ export function useVoiceChat({ chat, speak }) {
     } else {
       state.value = 'idle';
     }
+  }
+
+  /** 点选快捷追问：把这句话当作用户发言直接送入对话（不必开口）。 */
+  async function say(text) {
+    const t = (text || '').trim();
+    if (!t || processing) return;
+    clearTimers();
+    stopCurrentAudio();
+    // 不在畅聊进行中（idle/error）时，处理完不自动开麦
+    if (state.value === 'idle' || state.value === 'error') userStopped = true;
+    error.value = null;
+    await processUtterance(t);
   }
 
   function playTts(tts, fallbackText) {
@@ -278,6 +294,6 @@ export function useVoiceChat({ chat, speak }) {
 
   return {
     state, supported, interim, transcripts, error,
-    start, stop, interruptTts, clearTranscripts
+    start, stop, interruptTts, clearTranscripts, say
   };
 }
