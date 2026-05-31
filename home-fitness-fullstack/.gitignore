@@ -34,3 +34,8 @@ logs/
 
 # ===== Uploads =====
 backend/uploads/
+
+# ===== Secrets / Env =====
+.env
+.env.*
+!.env.example

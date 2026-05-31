@@ -1,0 +1,21 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#faf9f5">
+  <meta name="description" content="AI 居家健身陪练 · 实时姿态识别 + 智能教练 + 社交激励">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>FitCoach · AI 居家健身陪练</title>
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+  <link href="https://fonts.googleapis.com/css2?family=Lora:wght@400;500;600;700&amp;family=Poppins:wght@500;600;700;800&amp;display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404/pose.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.3.1675466862/camera_utils.js"></script>
+  <script type="module" crossorigin="" src="/assets/index-BQzRlPQW.js"></script>
+  <link rel="stylesheet" crossorigin="" href="/assets/index-CdyPLmwp.css">
+<link rel="modulepreload" as="script" crossorigin="" href="/assets/Login-0bs-GxGl.js"><link rel="stylesheet" crossorigin="" href="/assets/Login-DKkii7np.css"></head>
+<body>
+  <div id="app" data-v-app=""><div data-v-e0bd90f7="" class="login-page"><button data-v-e0bd90f7="" class="back-btn" type="button" aria-label="返回"><svg data-v-e0bd90f7="" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path data-v-e0bd90f7="" d="M15 18l-6-6 6-6"></path></svg><span data-v-e0bd90f7="">返回</span></button><div data-v-e0bd90f7="" class="bg-glow glow-1"></div><div data-v-e0bd90f7="" class="bg-glow glow-2"></div><div data-v-e0bd90f7="" class="login-wrap"><div class="brand-area" data-v-e0bd90f7=""><div class="logo-big" data-v-e0bd90f7=""><svg viewBox="0 0 32 32" fill="none" data-v-e0bd90f7=""><defs data-v-e0bd90f7=""><linearGradient id="llg" x1="4" y1="4" x2="28" y2="28" data-v-e0bd90f7=""><stop stop-color="#d97757" data-v-e0bd90f7=""></stop><stop offset="1" stop-color="#c96442" data-v-e0bd90f7=""></stop></linearGradient></defs><circle cx="16" cy="10" r="2.5" stroke="url(#llg)" stroke-width="1.8" data-v-e0bd90f7=""></circle><path d="M12 22l2-7 2 3 2-3 2 7" stroke="url(#llg)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-v-e0bd90f7=""></path></svg></div><h1 class="title text-gradient" data-v-e0bd90f7="">FitCoach</h1><p class="subtitle" data-v-e0bd90f7="">AI 居家健身陪练 · 让训练更智能</p></div><div data-v-e0bd90f7="" class="auth-tabs"><button data-v-e0bd90f7="" class="auth-tab active">登录</button><button data-v-e0bd90f7="" class="auth-tab">注册</button></div><div data-v-e0bd90f7="" class="mode-switch"><button dat
