@@ -3,7 +3,7 @@ import { ref, computed, nextTick, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router';
 import { coachApi } from '@/api/coach';
 import { emotionApi } from '@/api/emotion';
-import { ttsApi, playTtsResult } from '@/api/tts';
+import { ttsApi, playTtsResult, stopTts } from '@/api/tts';
 import { useConfigStore } from '@/stores/config';
 import { useAuthStore } from '@/stores/auth';
 import VoiceCompanion from './VoiceCompanion.vue';
@@ -252,14 +252,26 @@ async function addAssistantReply(reply, recalled, provider) {
 
 function sleep(ms) { return new Promise(res => setTimeout(res, ms)); }
 
+// 打字机 / 语音播报的可中断句柄
+let typeTimer = null;
+let typingMsg = null;
+
+/** 关闭/离开时停掉正在进行的打字机与语音播报，避免后台继续跑或叠音。 */
+function stopPlayback() {
+  stopTts();
+  if (typeTimer) { clearInterval(typeTimer); typeTimer = null; }
+  if (typingMsg) { typingMsg.revealed = typingMsg.content?.length || 0; typingMsg = null; }
+}
+
 /** 把 msg.revealed 从 0 推到 content.length，期间 Vue 自动重渲染。 */
 function runTypewriter(msg, tickMs = 28) {
   return new Promise(resolve => {
     const total = msg.content?.length || 0;
     if (total === 0) { msg.revealed = 0; resolve(); return; }
     msg.revealed = 0;
+    typingMsg = msg;
     let pending = false;
-    const timer = setInterval(() => {
+    typeTimer = setInterval(() => {
       const step = msg.content[msg.revealed] && msg.content.charCodeAt(msg.revealed) < 128 ? 2 : 1;
       msg.revealed = Math.min(msg.revealed + step, total);
       // 跟随滚动 — 节流，避免每 tick scroll
@@ -271,7 +283,7 @@ function runTypewriter(msg, tickMs = 28) {
         });
       }
       if (msg.revealed >= total) {
-        clearInterval(timer);
+        clearInterval(typeTimer); typeTimer = null; typingMsg = null;
         resolve();
       }
     }, tickMs);
@@ -312,6 +324,7 @@ function applyPrompt(p) {
 }
 
 function clearChat() {
+  stopPlayback();
   messages.value = [];
   sessionStorage.removeItem(chatKey.value);
 }
@@ -365,7 +378,8 @@ async function expand() {
   if (tab.value === 'snap' && !suggestion.value) await fetchSuggestion();
 }
 function collapse() {
-  // 关闭浮窗也要停掉畅聊（不然窗口关了麦还在录）
+  // 关闭浮窗：停掉聊天 TTS/打字机 + 畅聊语音（不然窗口关了还在播/还在录）
+  stopPlayback();
   if (tab.value === 'voice') {
     try { voiceRef.value?.stop?.(); } catch (_) {}
   }
@@ -392,6 +406,8 @@ watch(tab, async (v, old) => {
   if (old === 'voice' && v !== 'voice') {
     try { voiceRef.value?.stop?.(); } catch (_) {}
   }
+  // 切走闲聊：停掉打字机与 TTS
+  if (old === 'chat' && v !== 'chat') stopPlayback();
   if (v === 'snap' && !suggestion.value) await fetchSuggestion();
   if (v === 'chat') await scrollToBottom();
 });
@@ -409,6 +425,7 @@ onMounted(() => {
   document.addEventListener('keydown', onKey);
 });
 onBeforeUnmount(() => {
+  stopPlayback();
   document.removeEventListener('click', onDocClick);
   document.removeEventListener('keydown', onKey);
 });
