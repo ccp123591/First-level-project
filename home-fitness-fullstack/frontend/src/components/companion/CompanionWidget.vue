@@ -33,6 +33,7 @@ const messages = ref([]);       // [{role, content, recalled?, provider?, time?,
 const input    = ref('');
 const sending  = ref(false);
 const listEl   = ref(null);
+const followups = ref([]);      // AI 回复后的情境化快捷追问
 
 // —— 建议态 ——
 const loading    = ref(false);
@@ -161,6 +162,7 @@ async function scrollToBottom() {
 async function sendMessage(text) {
   const txt = (text ?? input.value).trim();
   if (!txt || sending.value) return;
+  followups.value = [];
   messages.value.push({ role: 'user', content: txt, time: Date.now() });
   if (!text) input.value = '';
   sending.value = true;
@@ -247,7 +249,19 @@ async function addAssistantReply(reply, recalled, provider) {
 
     if (!isLast) await sleep(420);   // 段间停顿，更像朋友连发两条
   }
+  followups.value = followupsFor(reply);
   persistMessages();
+}
+
+/** 根据 AI 回复内容,给出 2-3 个情境化快捷追问。 */
+function followupsFor(reply) {
+  const r = reply || '';
+  if (/练|动作|计划|深蹲|俯卧|平板|目标|强度|有氧/.test(r)) return ['那今天先练哪个？', '给我排个轻松点的', '我今天没什么力气'];
+  if (/休息|喝水|深呼吸|放松|不急|心情|低落|累|陪/.test(r)) return ['其实我还好', '陪我聊点别的', '说点开心的'];
+  if (/记得|收着|提过|想起|之前|记忆/.test(r)) return ['还记得别的吗？', '我们还聊过什么？'];
+  if (/名字|记住|喊你|叫你/.test(r)) return ['那你叫什么？', '今天该练了吗？'];
+  if (/[？?]\s*$/.test(r)) return ['嗯，是的', '不太想', '换个话题'];
+  return ['然后呢？', '今天该练什么？', '随便聊聊'];
 }
 
 function sleep(ms) { return new Promise(res => setTimeout(res, ms)); }
@@ -326,6 +340,7 @@ function applyPrompt(p) {
 function clearChat() {
   stopPlayback();
   messages.value = [];
+  followups.value = [];
   sessionStorage.removeItem(chatKey.value);
 }
 
@@ -535,7 +550,12 @@ function displayText(m) {
           </div>
 
           <div class="quick-row">
-            <button v-for="p in QUICK_PROMPTS" :key="p" class="chip" @click="applyPrompt(p)">{{ p }}</button>
+            <template v-if="followups.length">
+              <button v-for="p in followups" :key="p" class="chip" :disabled="sending" @click="sendMessage(p)">{{ p }}</button>
+            </template>
+            <template v-else>
+              <button v-for="p in QUICK_PROMPTS" :key="p" class="chip" @click="applyPrompt(p)">{{ p }}</button>
+            </template>
           </div>
 
           <div class="composer">
@@ -907,6 +927,7 @@ function displayText(m) {
   transition: all .15s;
 }
 .chip:hover { color: var(--cyan); border-color: var(--cyan); background: var(--cyan-dim); }
+.chip:disabled { opacity: .5; cursor: not-allowed; }
 
 .composer {
   display: flex; align-items: flex-end; gap: 6px;

@@ -52,4 +52,16 @@ class MockCoachProviderTest {
     void mock_provider_name_is_mock() {
         assertThat(new MockCoachProvider().name()).isEqualTo("mock");
     }
+
+    @Test
+    void mock_chat_remembers_name_across_turns() {
+        var p = new MockCoachProvider();
+        var ctx = CoachContext.builder().build();
+        var history = java.util.List.of(
+                new com.fitcoach.infra.ai.ChatTurn("user", "你好，我叫小明"),
+                new com.fitcoach.infra.ai.ChatTurn("assistant", "好，记住啦——小明。"));
+        var r = p.chat(ctx, "我叫什么", history);
+        assertThat(r.getReply()).contains("小明");
+        assertThat(r.getProvider()).isEqualTo("mock");
+    }
 }
