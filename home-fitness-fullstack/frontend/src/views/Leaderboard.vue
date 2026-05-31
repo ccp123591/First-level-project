@@ -1,33 +1,42 @@
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, watch, onMounted } from 'vue';
+import { socialApi } from '@/api/social';
+import { useAuthStore } from '@/stores/auth';
 
+const auth = useAuthStore();
 const tab = ref('weekly');
+const loading = ref(false);
+const cache = ref({ weekly: null, monthly: null, friends: null });
 
-// 占位数据
-const mockData = {
-  weekly: [
-    { rank: 1, name: '健身达人小王', reps: 1234, score: 95, avatar: '', you: false },
-    { rank: 2, name: '晨跑小李', reps: 1100, score: 92, avatar: '', you: false },
-    { rank: 3, name: '肌肉男张', reps: 980, score: 89, avatar: '', you: false },
-    { rank: 4, name: '你', reps: 820, score: 88, avatar: '', you: true },
-    { rank: 5, name: 'FitGirl', reps: 750, score: 87, avatar: '', you: false },
-    { rank: 6, name: '卷王刘', reps: 720, score: 85, avatar: '', you: false },
-    { rank: 7, name: '瑜伽妹妹', reps: 680, score: 90, avatar: '', you: false },
-    { rank: 8, name: '力量派', reps: 650, score: 82, avatar: '', you: false }
-  ],
-  monthly: [],
-  friends: []
-};
+const data = computed(() =>
+  (cache.value[tab.value] || []).map(u => ({
+    ...u,
+    you: auth.user?.id != null && u.userId === auth.user.id
+  }))
+);
 
-const data = computed(() => mockData[tab.value] || []);
+async function load(t) {
+  if (cache.value[t]) return;
+  loading.value = true;
+  try {
+    const fn = t === 'monthly' ? socialApi.leaderboardMonthly
+             : t === 'friends' ? socialApi.leaderboardFriends
+             : socialApi.leaderboardWeekly;
+    cache.value[t] = (await fn()) || [];
+  } catch (_) {
+    cache.value[t] = [];
+  } finally {
+    loading.value = false;
+  }
+}
+
+watch(tab, load);
+onMounted(() => load('weekly'));
 
 const top3 = computed(() => data.value.slice(0, 3));
 const rest = computed(() => data.value.slice(3));
 
 function medal(r) {
-  if (r === 1) return '🥇';
-  if (r === 2) return '🥈';
-  if (r === 3) return '🥉';
   return `#${r}`;
 }
 
@@ -55,23 +64,27 @@ function avatarStyle(name) {
       <button :class="['tab', tab === 'friends' ? 'active' : '']" @click="tab = 'friends'">好友</button>
     </div>
 
+    <!-- Loading -->
+    <div v-if="loading" class="placeholder">
+      <div>加载中…</div>
+    </div>
+
     <!-- Top3 Podium -->
-    <div v-if="top3.length" class="podium">
+    <div v-else-if="top3.length" class="podium">
       <div class="podium-card rank-2">
-        <div class="rank-medal">🥈</div>
+        <div class="rank-medal">2</div>
         <div class="pd-avatar" :style="avatarStyle(top3[1]?.name || '')">{{ (top3[1]?.name || '?')[0] }}</div>
         <div class="pd-name">{{ top3[1]?.name }}</div>
         <div class="pd-score">{{ top3[1]?.reps }} 次</div>
       </div>
       <div class="podium-card rank-1">
-        <div class="rank-crown">👑</div>
-        <div class="rank-medal">🥇</div>
+        <div class="rank-medal">1</div>
         <div class="pd-avatar" :style="avatarStyle(top3[0]?.name || '')">{{ (top3[0]?.name || '?')[0] }}</div>
         <div class="pd-name">{{ top3[0]?.name }}</div>
         <div class="pd-score">{{ top3[0]?.reps }} 次</div>
       </div>
       <div class="podium-card rank-3">
-        <div class="rank-medal">🥉</div>
+        <div class="rank-medal">3</div>
         <div class="pd-avatar" :style="avatarStyle(top3[2]?.name || '')">{{ (top3[2]?.name || '?')[0] }}</div>
         <div class="pd-name">{{ top3[2]?.name }}</div>
         <div class="pd-score">{{ top3[2]?.reps }} 次</div>
@@ -79,7 +92,7 @@ function avatarStyle(name) {
     </div>
 
     <!-- Rest List -->
-    <ul v-if="rest.length" class="rank-list">
+    <ul v-if="!loading && rest.length" class="rank-list">
       <li
         v-for="u in rest"
         :key="u.rank"
@@ -98,9 +111,9 @@ function avatarStyle(name) {
       </li>
     </ul>
 
-    <div v-else-if="tab === 'friends'" class="placeholder">
-      <div>暂无好友数据</div>
-      <small>绑定账号并关注好友后可见</small>
+    <div v-if="!loading && !data.length" class="placeholder">
+      <div>{{ tab === 'friends' ? '暂无好友数据' : '暂无排行数据' }}</div>
+      <small>{{ tab === 'friends' ? '关注好友后可见 TA 们的排名' : '完成训练后即可上榜' }}</small>
     </div>
   </div>
 </template>

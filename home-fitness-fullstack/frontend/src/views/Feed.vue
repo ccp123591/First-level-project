@@ -1,47 +1,74 @@
 <script setup>
-import { ref } from 'vue';
+import { ref, onMounted } from 'vue';
+import { socialApi } from '@/api/social';
+import { useAuthStore } from '@/stores/auth';
+import { useAppStore } from '@/stores/app';
+import EmptyState from '@/components/common/EmptyState.vue';
 
-const posts = ref([
-  {
-    id: 1,
-    user: '健身达人小王',
-    time: '10 分钟前',
-    content: '今天完成了 50 个深蹲，综合评分 92，感觉状态不错！',
-    action: '深蹲',
-    reps: 50,
-    score: 92,
-    liked: false,
-    likes: 12,
-    comments: 3
-  },
-  {
-    id: 2,
-    user: '瑜伽妹妹',
-    time: '1 小时前',
-    content: '连续打卡第 7 天了🎉，今天解锁了"七日连续"徽章！',
-    action: '前屈伸展',
-    reps: 30,
-    score: 88,
-    liked: true,
-    likes: 28,
-    comments: 5
+const auth = useAuthStore();
+const app = useAppStore();
+const posts = ref([]);
+const loading = ref(false);
+
+async function load() {
+  if (!auth.isLogin) return;
+  loading.value = true;
+  try {
+    const res = await socialApi.feed({ page: 1, size: 20 });
+    posts.value = (res?.items || []).map(p => ({
+      ...p, showComments: false, comments: null, draft: '', sending: false
+    }));
+  } finally { loading.value = false; }
+}
+
+async function toggleLike(p) {
+  try {
+    if (p.liked) { await socialApi.unlike(p.id); p.liked = false; p.likes = Math.max(0, (p.likes || 0) - 1); }
+    else { await socialApi.like(p.id); p.liked = true; p.likes = (p.likes || 0) + 1; }
+  } catch (_) { /* 拦截器已提示 */ }
+}
+
+async function toggleComments(p) {
+  p.showComments = !p.showComments;
+  if (p.showComments && p.comments === null) {
+    p.comments = (await socialApi.comments(p.id)) || [];
   }
-]);
+}
 
-function toggleLike(p) {
-  p.liked = !p.liked;
-  p.likes += p.liked ? 1 : -1;
+async function submitComment(p) {
+  const text = (p.draft || '').trim();
+  if (!text || p.sending) return;
+  p.sending = true;
+  try {
+    await socialApi.comment(p.id, text);
+    if (p.comments === null) p.comments = [];
+    p.comments.push({ id: Date.now(), content: text, nickname: auth.displayName });
+    p.commentsCount = (p.commentsCount || 0) + 1;
+    p.draft = '';
+  } catch (_) { /* 拦截器已提示 */ } finally { p.sending = false; }
+}
+
+function fmtTime(t) {
+  if (!t) return '';
+  const d = new Date(t), diff = (Date.now() - d.getTime()) / 1000;
+  if (diff < 60) return '刚刚';
+  if (diff < 3600) return `${Math.floor(diff / 60)} 分钟前`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)} 小时前`;
+  if (diff < 2592000) return `${Math.floor(diff / 86400)} 天前`;
+  return d.toLocaleDateString('zh-CN');
 }
 
 // 根据姓名生成暖色系 HSL 渐变，保持与排行榜一致的视觉语言
 function avatarStyle(name) {
   let h = 0;
-  for (const ch of name) h = (h * 31 + ch.charCodeAt(0)) | 0;
+  for (const ch of (name || '?')) h = (h * 31 + ch.charCodeAt(0)) | 0;
   const hue = 15 + (Math.abs(h) % 40);
   const c1 = `hsl(${hue}, 52%, 62%)`;
   const c2 = `hsl(${(hue + 340) % 360}, 42%, 44%)`;
   return { background: `linear-gradient(135deg, ${c1}, ${c2})` };
 }
+
+onMounted(load);
 </script>
 
 <template>
@@ -51,42 +78,48 @@ function avatarStyle(name) {
       <p class="sub">看看大家都在练什么</p>
     </div>
 
-    <div v-for="p in posts" :key="p.id" class="post-card">
-      <div class="post-head">
-        <div class="p-avatar" :style="avatarStyle(p.user)">{{ p.user[0] }}</div>
-        <div>
-          <div class="p-user">{{ p.user }}</div>
-          <div class="p-time">{{ p.time }}</div>
+    <template v-if="auth.isLogin">
+      <div v-for="p in posts" :key="p.id" class="post-card">
+        <div class="post-head">
+          <div class="p-avatar" :style="avatarStyle(p.nickname)">{{ (p.nickname || '健')[0] }}</div>
+          <div>
+            <div class="p-user">{{ p.nickname || '健友' }}</div>
+            <div class="p-time">{{ fmtTime(p.createdAt) }}</div>
+          </div>
+        </div>
+        <div class="post-content">{{ p.content }}</div>
+        <div class="post-actions">
+          <button :class="['a-btn', p.liked ? 'liked' : '']" @click="toggleLike(p)">
+            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M10 17s-5.5-3-7-7 1.5-7 4-7 3 2 3 2 .5-2 3-2 5.5 3 4 7-7 7-7 7z" :fill="p.liked ? 'currentColor' : 'none'"/>
+            </svg>
+            {{ p.likes || 0 }}
+          </button>
+          <button :class="['a-btn', p.showComments ? 'active' : '']" @click="toggleComments(p)">
+            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M3 12a8 8 0 1 1 3.5 6.6L3 19l.5-3.5A8 8 0 0 1 3 12z"/></svg>
+            {{ p.commentsCount || 0 }}
+          </button>
+        </div>
+
+        <div v-if="p.showComments" class="comments">
+          <div v-for="c in (p.comments || [])" :key="c.id" class="comment">
+            <span class="c-name">{{ c.nickname || '健友' }}</span>
+            <span class="c-text">{{ c.content }}</span>
+          </div>
+          <div v-if="p.comments && !p.comments.length" class="c-empty">还没有评论，来抢沙发</div>
+          <div class="c-input">
+            <input v-model="p.draft" type="text" placeholder="写下你的评论…" maxlength="200"
+                   @keyup.enter="submitComment(p)" />
+            <button :disabled="p.sending || !p.draft.trim()" @click="submitComment(p)">发送</button>
+          </div>
         </div>
       </div>
-      <div class="post-content">{{ p.content }}</div>
-      <div class="workout-card">
-        <div class="w-action">
-          <div class="w-dot"></div>
-          <span>{{ p.action }}</span>
-        </div>
-        <div class="w-stats">
-          <div><span>{{ p.reps }}</span><small>次</small></div>
-          <div><span>{{ p.score }}</span><small>分</small></div>
-        </div>
-      </div>
-      <div class="post-actions">
-        <button :class="['a-btn', p.liked ? 'liked' : '']" @click="toggleLike(p)">
-          <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M10 17s-5.5-3-7-7 1.5-7 4-7 3 2 3 2 .5-2 3-2 5.5 3 4 7-7 7-7 7z" :fill="p.liked ? 'currentColor' : 'none'"/>
-          </svg>
-          {{ p.likes }}
-        </button>
-        <button class="a-btn">
-          <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M3 12a8 8 0 1 1 3.5 6.6L3 19l.5-3.5A8 8 0 0 1 3 12z"/></svg>
-          {{ p.comments }}
-        </button>
-        <button class="a-btn">
-          <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="5" cy="10" r="2"/><circle cx="15" cy="5" r="2"/><circle cx="15" cy="15" r="2"/><path d="M7 9l6-3 M7 11l6 3"/></svg>
-          分享
-        </button>
-      </div>
-    </div>
+
+      <div v-if="loading" class="placeholder">加载中…</div>
+      <EmptyState v-else-if="!posts.length" title="还没有动态" desc="完成训练后分享给大家吧" />
+    </template>
+
+    <EmptyState v-else title="登录后查看动态" desc="和健友们互相激励、点赞、评论" />
   </div>
 </template>
 
@@ -175,4 +208,32 @@ function avatarStyle(name) {
 .a-btn svg { width: 16px; height: 16px; }
 .a-btn:hover { color: var(--text); }
 .a-btn.liked { color: var(--red); }
+.a-btn.active { color: var(--cyan); }
+
+.comments { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
+.comment { font-size: 13px; line-height: 1.6; margin-bottom: 6px; }
+.c-name { font-weight: 700; color: var(--text); margin-right: 6px; }
+.c-text { color: var(--text-2); }
+.c-empty { font-size: 12px; color: var(--text-3); padding: 4px 0 8px; }
+.c-input { display: flex; gap: 8px; margin-top: 8px; }
+.c-input input {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-card-2);
+  color: var(--text);
+  font-size: 13px;
+}
+.c-input button {
+  padding: 8px 14px;
+  border-radius: 10px;
+  background: var(--grad-primary);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+}
+.c-input button:disabled { opacity: .5; }
+
+.placeholder { text-align: center; padding: 40px 20px; color: var(--text-3); font-size: 13px; }
 </style>

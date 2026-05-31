@@ -1,18 +1,56 @@
 <script setup>
-import { ref } from 'vue';
+import { ref, computed, watch, onMounted } from 'vue';
+import { planApi } from '@/api/plan';
+import { useAuthStore } from '@/stores/auth';
+import { useAppStore } from '@/stores/app';
 
+const auth = useAuthStore();
+const app = useAppStore();
 const tab = ref('official');
 
-const officialPlans = [
-  { id: 1, title: '新手入门 7 天', desc: '零基础友好，每天 15 分钟', cover: '#d97757', level: '新手', days: 7 },
-  { id: 2, title: '核心强化 14 天', desc: '针对核心力量的系统训练', cover: '#c96442', level: '进阶', days: 14 },
-  { id: 3, title: '30 天俯卧撑挑战', desc: '从 10 个到 100 个的进阶', cover: '#FF9F43', level: '进阶', days: 30 },
-  { id: 4, title: '柔韧性提升', desc: '每天 20 分钟拉伸', cover: '#00E58A', level: '新手', days: 10 }
-];
+const officialPlans = ref([]);
+const marketPlans = ref([]);
+const myPlans = ref([]);
+const loading = ref(false);
+const adopting = ref(0);
 
-const myPlans = [
-  { id: 5, title: '新手入门 7 天', progress: 3, total: 7, today: true }
-];
+const LEVEL = { NEWBIE: '新手', INTERMEDIATE: '进阶', ADVANCED: '高级' };
+const levelLabel = (l) => LEVEL[l] || l || '新手';
+const gridList = computed(() => (tab.value === 'market' ? marketPlans.value : officialPlans.value));
+
+async function loadOfficial() {
+  officialPlans.value = (await planApi.official()) || [];
+}
+async function loadMine() {
+  if (!auth.isLogin) { myPlans.value = []; return; }
+  myPlans.value = (await planApi.myPlans()) || [];
+}
+async function loadMarket() {
+  if (!auth.isLogin) { marketPlans.value = []; return; }
+  const res = await planApi.market({ page: 1, size: 20 });
+  marketPlans.value = res?.items || [];
+}
+
+async function adopt(p) {
+  if (!auth.isLogin) { app.showToast('请先登录', 'warning'); return; }
+  adopting.value = p.id;
+  try {
+    await planApi.adopt(p.id);
+    app.showToast('已采用，开始训练吧', 'success');
+    await loadMine();
+    tab.value = 'mine';
+  } catch (_) { /* 拦截器已提示 */ } finally { adopting.value = 0; }
+}
+
+watch(tab, (t) => {
+  if (t === 'market' && !marketPlans.value.length) loadMarket();
+  if (t === 'mine') loadMine();
+});
+
+onMounted(async () => {
+  loading.value = true;
+  try { await loadOfficial(); await loadMine(); } finally { loading.value = false; }
+});
 </script>
 
 <template>
@@ -28,43 +66,44 @@ const myPlans = [
       <button :class="['tab', tab === 'market' ? 'active' : '']" @click="tab = 'market'">社区</button>
     </div>
 
-    <div v-if="tab === 'official'" class="plans-grid">
-      <div v-for="p in officialPlans" :key="p.id" class="plan-card">
-        <div class="plan-cover" :style="{ background: `linear-gradient(135deg, ${p.cover}, var(--bg-card-2))` }">
-          <span class="level-tag">{{ p.level }}</span>
-          <div class="cover-deco"></div>
-        </div>
-        <div class="plan-body">
-          <div class="plan-title">{{ p.title }}</div>
-          <div class="plan-desc">{{ p.desc }}</div>
-          <div class="plan-foot">
-            <span class="days">🗓 {{ p.days }} 天</span>
-            <button class="adopt">采用</button>
+    <div v-if="tab === 'official' || tab === 'market'">
+      <div v-if="gridList.length" class="plans-grid">
+        <div v-for="p in gridList" :key="p.id" class="plan-card">
+          <div class="plan-cover" :style="{ background: `linear-gradient(135deg, ${p.cover || 'var(--cyan)'}, var(--bg-card-2))` }">
+            <span class="level-tag">{{ levelLabel(p.level) }}</span>
+            <div class="cover-deco"></div>
+          </div>
+          <div class="plan-body">
+            <div class="plan-title">{{ p.title }}</div>
+            <div class="plan-desc">{{ p.description }}</div>
+            <div class="plan-foot">
+              <span class="days">{{ p.days }} 天 · {{ p.adoptCount || 0 }} 人在练</span>
+              <button class="adopt" :disabled="adopting === p.id" @click="adopt(p)">采用</button>
+            </div>
           </div>
         </div>
+      </div>
+      <div v-else class="placeholder">
+        <div>{{ tab === 'market' && !auth.isLogin ? '登录后查看社区计划' : '暂无计划' }}</div>
+        <small>{{ tab === 'market' ? '看看大家分享的训练方案' : '官方计划即将上线' }}</small>
       </div>
     </div>
 
     <div v-else-if="tab === 'mine'" class="mine-list">
-      <div v-if="myPlans.length" v-for="p in myPlans" :key="p.id" class="mine-card">
+      <div v-for="p in myPlans" :key="p.planId" class="mine-card">
         <div class="mine-head">
           <div class="mine-title">{{ p.title }}</div>
-          <span v-if="p.today" class="today-tag">今日可练</span>
+          <span class="today-tag">{{ levelLabel(p.level) }}</span>
         </div>
         <div class="mine-prog-bar">
-          <div class="mine-prog-fill" :style="{ width: `${p.progress / p.total * 100}%` }"></div>
+          <div class="mine-prog-fill" :style="{ width: `${(p.progressDay || 0) / Math.max(1, p.days) * 100}%` }"></div>
         </div>
-        <div class="mine-prog-text">{{ p.progress }} / {{ p.total }} 天</div>
+        <div class="mine-prog-text">{{ p.progressDay || 0 }} / {{ p.days }} 天</div>
       </div>
       <div v-if="!myPlans.length" class="empty-p">
-        <p>还未采用任何计划</p>
+        <p>{{ auth.isLogin ? '还未采用任何计划' : '登录后可采用并跟练计划' }}</p>
         <button class="btn-small" @click="tab = 'official'">浏览官方计划</button>
       </div>
-    </div>
-
-    <div v-else class="placeholder">
-      <div>社区计划市场即将上线</div>
-      <small>敬请期待</small>
     </div>
   </div>
 </template>

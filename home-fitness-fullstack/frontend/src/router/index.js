@@ -49,6 +49,24 @@ const routes = [
     meta: { tab: 'social', title: '动态' }
   },
   {
+    path: '/challenges',
+    name: 'Challenges',
+    component: () => import('@/views/Challenges.vue'),
+    meta: { tab: 'social', title: '挑战赛' }
+  },
+  {
+    path: '/emotion',
+    name: 'Emotion',
+    component: () => import('@/views/Emotion.vue'),
+    meta: { tab: 'profile', title: '情感记录' }
+  },
+  {
+    path: '/room',
+    name: 'Room',
+    component: () => import('@/views/Room.vue'),
+    meta: { tab: 'train', title: '环境扫描' }
+  },
+  {
     path: '/profile',
     name: 'Profile',
     component: () => import('@/views/Profile.vue'),

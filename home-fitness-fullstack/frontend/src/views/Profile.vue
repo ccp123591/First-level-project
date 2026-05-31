@@ -4,6 +4,8 @@ import { useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import { useAppStore } from '@/stores/app';
 import { storage } from '@/modules/storage';
+import { userApi } from '@/api/user';
+import { badgeApi } from '@/api/exercise';
 
 const router = useRouter();
 const auth = useAuthStore();
@@ -11,20 +13,33 @@ const app = useAppStore();
 
 const stats = ref({ total: 0, sessions: 0, bestScore: 0 });
 const badges = ref([
-  { id: 1, name: '初次训练', icon: '🎯', unlocked: true, desc: '完成第一次训练' },
-  { id: 2, name: '百次达成', icon: '💯', unlocked: false, desc: '累计完成 100 次' },
-  { id: 3, name: '七日连续', icon: '🔥', unlocked: false, desc: '连续打卡 7 天' },
-  { id: 4, name: '完美评分', icon: '⭐', unlocked: false, desc: '单次评分 95+' },
-  { id: 5, name: '节奏大师', icon: '🎵', unlocked: false, desc: '节奏评分 100' },
-  { id: 6, name: '坚持不懈', icon: '💪', unlocked: false, desc: '累计 30 天' }
+  { id: 1, name: '初次训练', unlocked: true, desc: '完成第一次训练' },
+  { id: 2, name: '百次达成', unlocked: false, desc: '累计完成 100 次' },
+  { id: 3, name: '七日连续', unlocked: false, desc: '连续打卡 7 天' },
+  { id: 4, name: '完美评分', unlocked: false, desc: '单次评分 95+' },
+  { id: 5, name: '节奏大师', unlocked: false, desc: '节奏评分 100' },
+  { id: 6, name: '坚持不懈', unlocked: false, desc: '累计 30 天' }
 ]);
 
 async function loadStats() {
+  if (auth.isLogin) {
+    try {
+      const s = await userApi.getStats();
+      stats.value = { sessions: s.totalSessions || 0, total: s.totalReps || 0, bestScore: s.bestScore || 0 };
+      const list = await badgeApi.all();
+      if (Array.isArray(list) && list.length) {
+        badges.value = list.map(b => ({ id: b.code, name: b.name, desc: b.description, unlocked: b.unlocked }));
+      }
+      return;
+    } catch (_) { /* 回退本地 */ }
+  }
+  // 游客 / 离线：从本地 IndexedDB 聚合
   const all = await storage.getAllSessions();
-  stats.value.sessions = all.length;
-  stats.value.total = all.reduce((s, r) => s + (r.reps || 0), 0);
-  stats.value.bestScore = all.length ? Math.max(...all.map(r => r.score || 0)) : 0;
-  // 本地判断徽章
+  stats.value = {
+    sessions: all.length,
+    total: all.reduce((s, r) => s + (r.reps || 0), 0),
+    bestScore: all.length ? Math.max(...all.map(r => r.score || 0)) : 0
+  };
   if (all.length >= 1) badges.value[0].unlocked = true;
   if (stats.value.total >= 100) badges.value[1].unlocked = true;
   if (stats.value.bestScore >= 95) badges.value[3].unlocked = true;
@@ -82,7 +97,9 @@ onMounted(loadStats);
       </div>
       <div class="badges-grid">
         <div v-for="b in badges" :key="b.id" :class="['badge-card', { unlocked: b.unlocked }]">
-          <div class="b-ico">{{ b.icon }}</div>
+          <div class="b-ico">
+            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="7" r="4"/><path d="M7.5 10.2 6 17l4-2 4 2-1.5-6.8"/></svg>
+          </div>
           <div class="b-name">{{ b.name }}</div>
           <div class="b-desc">{{ b.desc }}</div>
         </div>
@@ -213,6 +230,7 @@ onMounted(loadStats);
   background: linear-gradient(135deg, rgba(255, 159, 67, .04), rgba(255, 90, 90, .04));
 }
 .b-ico { font-size: 28px; margin-bottom: 4px; }
+.b-ico svg { width: 26px; height: 26px; }
 .b-name { font-size: 11px; font-weight: 700; color: var(--text); }
 .b-desc { font-size: 9px; color: var(--text-3); margin-top: 2px; }
 

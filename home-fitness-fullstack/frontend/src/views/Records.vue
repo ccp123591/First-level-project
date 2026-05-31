@@ -3,7 +3,9 @@ import { ref, onMounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { useConfigStore } from '@/stores/config';
 import { useAppStore } from '@/stores/app';
+import { useAuthStore } from '@/stores/auth';
 import { storage } from '@/modules/storage';
+import { sessionApi } from '@/api/session';
 import { ACTION_DEFS } from '@/modules/exercise';
 import ProgressChart from '@/components/charts/ProgressChart.vue';
 import HeatmapCalendar from '@/components/charts/HeatmapCalendar.vue';
@@ -12,12 +14,20 @@ import EmptyState from '@/components/common/EmptyState.vue';
 const router = useRouter();
 const config = useConfigStore();
 const app = useAppStore();
+const auth = useAuthStore();
 
 const tab = ref('chart'); // chart | heatmap
 const filter = ref('all');
 const sessions = ref([]);
 
 async function load() {
+  if (auth.isLogin) {
+    try {
+      const res = await sessionApi.list({ page: 1, size: 500 });
+      sessions.value = (res?.items || []).map(s => ({ ...s, date: s.sessionDate, synced: 1 }));
+      return;
+    } catch (_) { /* 回退本地 */ }
+  }
   sessions.value = await storage.getAllSessions();
 }
 
@@ -68,7 +78,7 @@ async function clearAll() {
 }
 
 function openDetail(s) {
-  const id = s.remoteId || s.localId;
+  const id = s.remoteId || s.id || s.localId;
   if (id) router.push(`/records/${id}`);
 }
 
@@ -91,7 +101,7 @@ onMounted(load);
       <div class="progress-bar">
         <div class="progress-fill" :style="{ width: weeklyGoal.pct + '%' }"></div>
       </div>
-      <div v-if="weeklyGoal.pct >= 100" class="weekly-done">🎉 目标达成！继续保持！</div>
+      <div v-if="weeklyGoal.pct >= 100" class="weekly-done">目标达成！继续保持！</div>
     </div>
 
     <!-- 视图切换 -->
@@ -126,7 +136,7 @@ onMounted(load);
     </div>
 
     <ul v-if="filtered.length" class="records-list">
-      <li v-for="s in filtered" :key="s.localId" class="rec-item" @click="openDetail(s)">
+      <li v-for="s in filtered" :key="s.localId ?? s.id" class="rec-item" @click="openDetail(s)">
         <div class="rec-left">
           <div class="rec-icon">
             <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M10 2v16 M4 8h12 M4 14h12"/></svg>

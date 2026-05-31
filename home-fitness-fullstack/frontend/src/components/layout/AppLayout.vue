@@ -2,6 +2,7 @@
 import TabBar from './TabBar.vue';
 import SideNav from './SideNav.vue';
 import TopBar from './TopBar.vue';
+import CompanionWidget from '@/components/companion/CompanionWidget.vue';
 </script>
 
 <template>
@@ -11,4 +12,5 @@ import TopBar from './TopBar.vue';
     <slot />
   </main>
   <TabBar />
+  <CompanionWidget />
 </template>

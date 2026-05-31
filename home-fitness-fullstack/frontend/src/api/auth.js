@@ -7,10 +7,14 @@ export const authApi = {
   loginAsGuest:    (deviceId)        => client.post('/auth/login/guest', { deviceId }),
 
   register:        (data)            => client.post('/auth/register', data),
-  sendSmsCode:     (phone)           => client.post('/auth/sms/send', { phone }),
-  sendEmailCode:   (email)           => client.post('/auth/email/send', { email }),
+  // 后端 SendCodeRequest 需要 { target, purpose }
+  sendSmsCode:     (phone, purpose = 'login') => client.post('/auth/sms/send',   { target: phone, purpose }),
+  sendEmailCode:   (email, purpose = 'login') => client.post('/auth/email/send', { target: email, purpose }),
 
   refresh:         (refreshToken)    => client.post('/auth/refresh', { refreshToken }),
-  logout:          ()                => client.post('/auth/logout'),
-  me:              ()                => client.get('/auth/me')
+  logout:          (refreshToken)    => client.post('/auth/logout', refreshToken ? { refreshToken } : {}),
+  me:              ()                => client.get('/auth/me'),
+
+  passwordForgot:  (email)           => client.post('/auth/password/forgot', { email }),
+  passwordReset:   (token, newPassword) => client.post('/auth/password/reset', { token, newPassword })
 };

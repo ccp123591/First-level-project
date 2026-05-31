@@ -4,15 +4,25 @@ import { ref, onMounted } from 'vue';
 import { storage } from '@/modules/storage';
 import { ACTION_DEFS } from '@/modules/exercise';
 import { useAppStore } from '@/stores/app';
+import { useAuthStore } from '@/stores/auth';
+import { sessionApi } from '@/api/session';
 
 const route = useRoute();
 const router = useRouter();
 const app = useAppStore();
+const auth = useAuthStore();
 const session = ref(null);
 
 onMounted(async () => {
-  const all = await storage.getAllSessions();
   const id = route.params.id;
+  if (auth.isLogin) {
+    try {
+      const s = await sessionApi.detail(id);
+      session.value = { ...s, date: s.sessionDate, synced: 1 };
+      return;
+    } catch (_) { /* 回退本地 */ }
+  }
+  const all = await storage.getAllSessions();
   session.value = all.find(s => String(s.remoteId ?? s.localId) === String(id)) || all[0];
 });
 

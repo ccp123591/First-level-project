@@ -142,6 +142,33 @@ onMounted(() => { /* config 已在 App.vue 加载 */ });
       </label>
     </div>
 
+    <!-- 陪伴 Agent -->
+    <div class="card">
+      <div class="card-head">
+        <div class="icon orange">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"/>
+            <circle cx="9" cy="10" r="1" fill="currentColor"/>
+            <circle cx="15" cy="10" r="1" fill="currentColor"/>
+            <path d="M8 15q4 3 8 0"/>
+          </svg>
+        </div>
+        <h3>陪伴 Agent</h3>
+      </div>
+      <div class="item">
+        <div class="lbl-row"><span>陪伴教练昵称</span><span class="v">{{ config.companionName || '小柯' }}</span></div>
+        <input class="text-input" type="text" v-model="config.companionName" maxlength="8" placeholder="例如：小柯" />
+      </div>
+      <label class="toggle-item">
+        <span>右下角浮动陪伴</span>
+        <input type="checkbox" v-model="config.companionEnabled" />
+      </label>
+      <label class="toggle-item">
+        <span>反馈到达后自动播报</span>
+        <input type="checkbox" v-model="config.companionAutoSpeak" />
+      </label>
+    </div>
+
     <!-- 周目标 -->
     <div class="card">
       <div class="card-head">
@@ -243,6 +270,18 @@ onMounted(() => { /* config 已在 App.vue 加载 */ });
 }
 .toggle-item:last-child { border-bottom: none; }
 .toggle-item input { accent-color: var(--cyan); transform: scale(1.2); }
+
+.text-input {
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-card-2);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+}
+.text-input:focus { outline: none; border-color: var(--cyan); background: var(--bg-card); }
 
 .actions {
   display: flex;

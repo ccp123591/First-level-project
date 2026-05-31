@@ -9,10 +9,13 @@ const auth = useAuthStore();
 
 const navs = [
   { key: 'train',       label: '开始训练',   path: '/train',       icon: 'M5 3l14 9L5 21V3z' },
+  { key: 'room',        label: '环境扫描',   path: '/room',        icon: 'M3 12l9-9 9 9 M5 10v10h14V10' },
   { key: 'records',     label: '训练记录',   path: '/records',     icon: 'M3 3v18h18 M7 16l4-4 4 2 5-6' },
   { key: 'plans',       label: '训练计划',   path: '/plans',       icon: 'M8 2v3 M16 2v3 M3 9h18 M5 5h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z' },
   { key: 'leaderboard', label: '排行榜',     path: '/leaderboard', icon: 'M12 2l3 7h7l-5.5 4.5 2 7L12 16l-6.5 4.5 2-7L2 9h7z' },
+  { key: 'challenges',  label: '挑战赛',     path: '/challenges',  icon: 'M6 9V4h12v5a6 6 0 0 1-12 0 M9 22h6 M12 15v7' },
   { key: 'feed',        label: '训练动态',   path: '/feed',        icon: 'M2 12a10 10 0 1 1 20 0 10 10 0 0 1-20 0 M6 12h12 M12 6v12' },
+  { key: 'emotion',     label: '情感记录',   path: '/emotion',     icon: 'M9 10h.01 M15 10h.01 M8 15c1 1.5 2.5 2 4 2s3-.5 4-2 M3 12a9 9 0 1 0 18 0 9 9 0 0 0-18 0z' },
   { key: 'profile',     label: '个人中心',   path: '/profile',     icon: 'M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2 M12 3a4 4 0 1 0 0 8 4 4 0 0 0 0-8' },
   { key: 'settings',    label: '设置',       path: '/settings',    icon: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6 M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4 1.65 1.65 0 0 0 7.18 19.73l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9 1.65 1.65 0 0 0 4.27 7.18l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z' }
 ];
@@ -24,10 +27,13 @@ const activeKey = computed(() => {
   if (path.startsWith('/settings')) return 'settings';
   if (path.startsWith('/admin')) return 'admin';
   if (path.startsWith('/profile')) return 'profile';
+  if (path.startsWith('/emotion')) return 'emotion';
+  if (path.startsWith('/challenges')) return 'challenges';
   if (path.startsWith('/leaderboard')) return 'leaderboard';
   if (path.startsWith('/feed')) return 'feed';
   if (path.startsWith('/plans')) return 'plans';
   if (path.startsWith('/records')) return 'records';
+  if (path.startsWith('/room')) return 'room';
   return 'train';
 });
 

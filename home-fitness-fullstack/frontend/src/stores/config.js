@@ -18,7 +18,10 @@ const DEFAULT_CONFIG = {
   voiceEnabled: true,
   metronomeEnabled: false,
   autoPauseEnabled: true,
-  coachEnabled: true
+  coachEnabled: true,
+  companionEnabled: true,
+  companionAutoSpeak: false,
+  companionName: '小柯'
 };
 
 export const useConfigStore = defineStore('config', () => {
@@ -35,6 +38,9 @@ export const useConfigStore = defineStore('config', () => {
   const metronomeEnabled = ref(DEFAULT_CONFIG.metronomeEnabled);
   const autoPauseEnabled = ref(DEFAULT_CONFIG.autoPauseEnabled);
   const coachEnabled = ref(DEFAULT_CONFIG.coachEnabled);
+  const companionEnabled = ref(DEFAULT_CONFIG.companionEnabled);
+  const companionAutoSpeak = ref(DEFAULT_CONFIG.companionAutoSpeak);
+  const companionName = ref(DEFAULT_CONFIG.companionName);
 
   function snapshot() {
     return {
@@ -45,7 +51,10 @@ export const useConfigStore = defineStore('config', () => {
       voiceEnabled: voiceEnabled.value,
       metronomeEnabled: metronomeEnabled.value,
       autoPauseEnabled: autoPauseEnabled.value,
-      coachEnabled: coachEnabled.value
+      coachEnabled: coachEnabled.value,
+      companionEnabled: companionEnabled.value,
+      companionAutoSpeak: companionAutoSpeak.value,
+      companionName: companionName.value
     };
   }
 
@@ -67,6 +76,9 @@ export const useConfigStore = defineStore('config', () => {
         metronomeEnabled.value = data.metronomeEnabled;
         autoPauseEnabled.value = data.autoPauseEnabled;
         coachEnabled.value = data.coachEnabled;
+        companionEnabled.value = data.companionEnabled;
+        companionAutoSpeak.value = data.companionAutoSpeak;
+        companionName.value = data.companionName || DEFAULT_CONFIG.companionName;
       }
     } catch (_) { /* ignore */ }
   }
@@ -89,6 +101,9 @@ export const useConfigStore = defineStore('config', () => {
     metronomeEnabled.value = DEFAULT_CONFIG.metronomeEnabled;
     autoPauseEnabled.value = DEFAULT_CONFIG.autoPauseEnabled;
     coachEnabled.value = DEFAULT_CONFIG.coachEnabled;
+    companionEnabled.value = DEFAULT_CONFIG.companionEnabled;
+    companionAutoSpeak.value = DEFAULT_CONFIG.companionAutoSpeak;
+    companionName.value = DEFAULT_CONFIG.companionName;
     save();
     applyTheme(theme.value);
   }
@@ -112,6 +127,7 @@ export const useConfigStore = defineStore('config', () => {
     squat, stretch, pushup, lunge, bridge,
     bpm, ttsRate, theme, weeklyGoal,
     voiceEnabled, metronomeEnabled, autoPauseEnabled, coachEnabled,
+    companionEnabled, companionAutoSpeak, companionName,
     snapshot, loadFromLocal, save, reset, applyTheme
   };
 });

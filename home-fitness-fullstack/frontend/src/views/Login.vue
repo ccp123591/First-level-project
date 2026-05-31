@@ -1,8 +1,9 @@
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, onBeforeUnmount } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import { useAppStore } from '@/stores/app';
+import { authApi } from '@/api/auth';
 
 const router = useRouter();
 const auth = useAuthStore();
@@ -24,7 +25,12 @@ const loading = ref(false);
 
 const primaryDisabled = computed(() => {
   if (!form.value.agree) return true;
-  if (mode.value === 'email')  return !form.value.email || !form.value.password;
+  if (mode.value === 'email') {
+    if (!form.value.email || !form.value.password) return true;
+    if (tab.value === 'register' && form.value.password.length < 8) return true;
+    if (tab.value === 'login'    && form.value.password.length < 6) return true;
+    return false;
+  }
   if (mode.value === 'phone')  return !form.value.phone || !form.value.smsCode;
   return false;
 });
@@ -34,31 +40,71 @@ function goBack() {
   else router.push('/train');
 }
 
+function applyAuth(data) {
+  // 后端返回 { accessToken, refreshToken, user }
+  auth.setAuth(data.accessToken, data.user);
+  if (data.refreshToken) {
+    try { localStorage.setItem('fitcoach_refresh_token', data.refreshToken); } catch (_) { /* ignore */ }
+  }
+}
+
 async function submit() {
-  if (primaryDisabled.value) return;
+  if (primaryDisabled.value || loading.value) return;
   loading.value = true;
   try {
-    // 占位：后端接口尚未实现，走前端 mock 登录
-    await new Promise(r => setTimeout(r, 500));
-    const isAdmin = form.value.email === 'admin@fitcoach.com';
-    const mockUser = {
-      id: isAdmin ? 0 : 1,
-      nickname: form.value.nickname || form.value.email || form.value.phone || '新用户',
-      avatar: '',
-      role: isAdmin ? 'ADMIN' : 'USER'
-    };
-    auth.setAuth('mock-token-' + Date.now(), mockUser);
-    app.showToast('登录成功', 'success');
+    let data;
+    if (tab.value === 'register') {
+      if (mode.value !== 'email') {
+        app.showToast('暂仅支持邮箱注册', 'warning');
+        return;
+      }
+      data = await authApi.register({
+        email: form.value.email,
+        password: form.value.password,
+        nickname: form.value.nickname || undefined
+      });
+    } else if (mode.value === 'email') {
+      data = await authApi.loginByEmail(form.value.email, form.value.password);
+    } else if (mode.value === 'phone') {
+      data = await authApi.loginByPhone(form.value.phone, form.value.smsCode);
+    }
+    if (!data || !data.accessToken) {
+      app.showToast('登录响应异常', 'error');
+      return;
+    }
+    applyAuth(data);
+    app.showToast(tab.value === 'register' ? '注册成功' : '登录成功', 'success');
     router.push('/train');
+  } catch (_) {
+    /* 拦截器已 toast */
   } finally {
     loading.value = false;
   }
 }
 
-function loginGuest() {
-  auth.enterGuest();
-  app.showToast('以游客身份进入', 'success');
-  router.push('/train');
+async function loginGuest() {
+  if (loading.value) return;
+  loading.value = true;
+  try {
+    let deviceId = localStorage.getItem('fitcoach_device_id');
+    if (!deviceId) {
+      deviceId = 'd-' + Math.random().toString(36).slice(2, 12) + Date.now().toString(36);
+      localStorage.setItem('fitcoach_device_id', deviceId);
+    }
+    const data = await authApi.loginAsGuest(deviceId);
+    if (data?.accessToken) {
+      applyAuth(data);
+      app.showToast('已以游客身份进入', 'success');
+      router.push('/train');
+    }
+  } catch (_) {
+    // 后端没开放游客时，退回前端纯游客模式（无 token，仅可浏览本地数据）
+    auth.enterGuest();
+    app.showToast('以本地游客身份进入', 'info');
+    router.push('/train');
+  } finally {
+    loading.value = false;
+  }
 }
 
 function loginWechat() {
@@ -67,15 +113,23 @@ function loginWechat() {
 
 let smsCountdown = ref(0);
 let smsTimer = null;
-function sendSms() {
+
+async function sendSms() {
   if (!form.value.phone || smsCountdown.value > 0) return;
-  app.showToast('验证码已发送', 'success');
-  smsCountdown.value = 60;
-  smsTimer = setInterval(() => {
-    smsCountdown.value--;
-    if (smsCountdown.value <= 0) { clearInterval(smsTimer); smsTimer = null; }
-  }, 1000);
+  try {
+    await authApi.sendSmsCode(form.value.phone, 'login');
+    app.showToast('验证码已发送', 'success');
+    smsCountdown.value = 60;
+    smsTimer = setInterval(() => {
+      smsCountdown.value--;
+      if (smsCountdown.value <= 0) { clearInterval(smsTimer); smsTimer = null; }
+    }, 1000);
+  } catch (_) { /* 拦截器已 toast */ }
 }
+
+onBeforeUnmount(() => {
+  if (smsTimer) clearInterval(smsTimer);
+});
 </script>
 
 <template>
@@ -183,7 +237,7 @@ function sendSms() {
         </button>
       </div>
 
-      <p class="tip">多种登录方式均为占位 · 后端对接后启用</p>
+      <p class="tip">微信登录暂未开放 · 演示账号 demo@fitcoach.com / admin123</p>
     </div>
   </div>
 </template>
