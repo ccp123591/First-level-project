@@ -9,6 +9,7 @@ import { exercise, ACTION_DEFS } from '@/modules/exercise';
 import { voice } from '@/modules/voice';
 import { storage } from '@/modules/storage';
 import { sessionApi } from '@/api/session';
+import { badgeApi } from '@/api/exercise';
 
 import HUD from '@/components/training/HUD.vue';
 import ActionCard from '@/components/training/ActionCard.vue';
@@ -206,6 +207,9 @@ async function stopTraining() {
         session.remoteId = remote.id;
         storage.markSynced(session.localId, remote.id);
       }
+      // 训练后检测徽章解锁
+      const unlocked = await badgeApi.check();
+      (unlocked || []).forEach(b => app.showToast(`解锁新徽章:${b.name}`, 'success', 3500));
     } catch (_) { /* 离线留存 */ }
   }
 

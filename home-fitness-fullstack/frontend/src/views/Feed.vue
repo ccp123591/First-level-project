@@ -9,6 +9,20 @@ const auth = useAuthStore();
 const app = useAppStore();
 const posts = ref([]);
 const loading = ref(false);
+const newPost = ref('');
+const posting = ref(false);
+
+async function publish() {
+  const text = newPost.value.trim();
+  if (!text || posting.value) return;
+  posting.value = true;
+  try {
+    await socialApi.post({ content: text, visibility: 'PUBLIC' });
+    newPost.value = '';
+    app.showToast('已发布', 'success');
+    await load();
+  } catch (_) { /* 拦截器已提示 */ } finally { posting.value = false; }
+}
 
 async function load() {
   if (!auth.isLogin) return;
@@ -79,6 +93,13 @@ onMounted(load);
     </div>
 
     <template v-if="auth.isLogin">
+      <div class="composer">
+        <textarea v-model="newPost" rows="2" maxlength="500" placeholder="分享一下今天的训练…"></textarea>
+        <div class="composer-foot">
+          <button class="post-btn" :disabled="posting || !newPost.trim()" @click="publish">发布</button>
+        </div>
+      </div>
+
       <div v-for="p in posts" :key="p.id" class="post-card">
         <div class="post-head">
           <div class="p-avatar" :style="avatarStyle(p.nickname)">{{ (p.nickname || '健')[0] }}</div>
@@ -236,4 +257,32 @@ onMounted(load);
 .c-input button:disabled { opacity: .5; }
 
 .placeholder { text-align: center; padding: 40px 20px; color: var(--text-3); font-size: 13px; }
+
+.composer {
+  padding: 14px 16px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  margin-bottom: 12px;
+}
+.composer textarea {
+  width: 100%;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  resize: vertical;
+  outline: none;
+}
+.composer-foot { display: flex; justify-content: flex-end; margin-top: 8px; }
+.post-btn {
+  padding: 8px 18px;
+  border-radius: 100px;
+  background: var(--grad-primary);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+}
+.post-btn:disabled { opacity: .5; }
 </style>

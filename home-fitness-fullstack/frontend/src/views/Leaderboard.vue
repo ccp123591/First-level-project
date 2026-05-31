@@ -1,11 +1,13 @@
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue';
 import { socialApi } from '@/api/social';
+import { userApi } from '@/api/user';
 import { useAuthStore } from '@/stores/auth';
 
 const auth = useAuthStore();
 const tab = ref('weekly');
 const loading = ref(false);
+const following = ref(new Set());
 const cache = ref({ weekly: null, monthly: null, friends: null });
 
 const data = computed(() =>
@@ -30,8 +32,27 @@ async function load(t) {
   }
 }
 
+async function loadFollowing() {
+  if (!auth.isLogin || auth.user?.id == null) return;
+  try {
+    const list = await userApi.followings(auth.user.id);
+    following.value = new Set((list || []).map(u => u.id));
+  } catch (_) { /* ignore */ }
+}
+
+async function toggleFollow(u) {
+  const id = u.userId;
+  if (id == null) return;
+  try {
+    if (following.value.has(id)) { await userApi.unfollow(id); following.value.delete(id); }
+    else { await userApi.follow(id); following.value.add(id); }
+    following.value = new Set(following.value);
+    cache.value.friends = null; // 关注变化后刷新好友榜
+  } catch (_) { /* 拦截器已提示 */ }
+}
+
 watch(tab, load);
-onMounted(() => load('weekly'));
+onMounted(() => { load('weekly'); loadFollowing(); });
 
 const top3 = computed(() => data.value.slice(0, 3));
 const rest = computed(() => data.value.slice(3));
@@ -108,6 +129,11 @@ function avatarStyle(name) {
           <div class="s">综合评分 {{ u.score }}</div>
         </div>
         <div class="reps">{{ u.reps }} 次</div>
+        <button
+          v-if="auth.isLogin && !u.you"
+          :class="['follow-btn', { on: following.has(u.userId) }]"
+          @click="toggleFollow(u)"
+        >{{ following.has(u.userId) ? '已关注' : '关注' }}</button>
       </li>
     </ul>
 
@@ -264,6 +290,17 @@ function avatarStyle(name) {
   font-weight: 800;
   color: var(--cyan);
 }
+.follow-btn {
+  flex-shrink: 0;
+  padding: 5px 12px;
+  border-radius: 100px;
+  background: var(--cyan-dim);
+  color: var(--cyan);
+  font-size: 11px;
+  font-weight: 600;
+  transition: all var(--transition);
+}
+.follow-btn.on { background: var(--bg-card-2); color: var(--text-3); }
 
 .placeholder {
   text-align: center;
